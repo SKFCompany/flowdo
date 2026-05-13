@@ -17,6 +17,7 @@ android.archs = arm64-v8a
 
 # Явно указываем версию build-tools без 37
 android.build_tools_version = 34.0.0
+android.skip_update = False
 
 [buildozer]
 log_level = 2
