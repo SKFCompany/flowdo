@@ -31,8 +31,8 @@ jobs:
             libffi-dev libssl-dev \
             libltdl-dev
           pip install --upgrade pip
-          pip install buildozer
-          pip install cython==3.0.11
+          pip install cython==0.29.37
+          pip install buildozer==1.5.0
 
       - name: Build APK
         run: |
