@@ -76,8 +76,18 @@ jobs:
         run: |
           export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
           export PATH=$JAVA_HOME/bin:$PATH
-          javac -version
-          buildozer android debug 2>&1
+          buildozer android debug 2>&1 | tee build.log || true
+
+      - name: Show last 100 lines of log
+        if: always()
+        run: tail -200 build.log | grep -A5 -B5 -i "error\|exception\|failed\|traceback" || tail -200 build.log
+
+      - name: Upload full log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
