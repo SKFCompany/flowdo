@@ -66,8 +66,11 @@ jobs:
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: /home/runner/.buildozer/android/platform/android-sdk
-          JAVA_HOME: /opt/hostedtoolcache/Java_Temurin_jdk/17.0.14-7/x64
         run: |
+          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
+          export PATH=$JAVA_HOME/bin:$PATH
+          java -version
+          javac -version
           buildozer android debug 2>&1
 
       - name: Upload APK
