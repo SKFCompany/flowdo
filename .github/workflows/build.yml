@@ -36,8 +36,18 @@ jobs:
 
       - name: Accept Android SDK licenses
         run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+          # Создаём симлинк который ищет buildozer
+          sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
+          sudo ln -sf /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
+            /usr/local/lib/android/sdk/tools/bin/sdkmanager
+          sudo ln -sf /usr/local/lib/android/sdk/cmdline-tools/latest/bin/avdmanager \
+            /usr/local/lib/android/sdk/tools/bin/avdmanager
+
+          # Принимаем лицензии
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
+            --licenses > /dev/null 2>&1 || true
+
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "platforms;android-33" \
             "build-tools;34.0.0"
