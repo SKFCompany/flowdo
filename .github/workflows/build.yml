@@ -1,26 +1,45 @@
 name: Build APK
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+on: [push]
 
 jobs:
   build:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v3
 
-      - name: Build APK with Docker
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/home/user/hostcwd \
-            kivy/buildozer:latest \
-            android debug
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3-pip git zip unzip openjdk-17-jdk \
+            libffi-dev libssl-dev autoconf libtool \
+            libltdl-dev zlib1g-dev
+          pip install buildozer cython
+
+      - name: Accept Android SDK licenses
+        run: |
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          echo "" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          echo "" > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+          echo "84831b9409646a918e30573bab4c9c91346d8abd" >> ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+
+      - name: Build APK
+        run: |
+          yes | buildozer android debug 2>&1
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v3
         with:
-          name: flowdo-apk
+          name: flowdo-debug
           path: bin/*.apk
