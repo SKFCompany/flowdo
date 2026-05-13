@@ -5,9 +5,13 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-22.04
+
     steps:
       - uses: actions/checkout@v4
 
@@ -24,16 +28,26 @@ jobs:
             autoconf libtool pkg-config \
             zlib1g-dev libncurses5-dev \
             libncursesw5-dev libtinfo5 cmake \
-            libffi-dev libssl-dev
-          pip install buildozer cython==0.29.37
+            libffi-dev libssl-dev \
+            libltdl-dev
+          pip install --upgrade pip
+          pip install buildozer
+          pip install cython==3.0.11
 
       - name: Build APK
         run: |
-          yes | buildozer android debug
-        timeout-minutes: 60
+          yes | buildozer android debug 2>&1 | tee build.log
+        timeout-minutes: 90
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: flowdo-apk
           path: bin/*.apk
+
+      - name: Upload log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
