@@ -6,7 +6,7 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json
 version = 4.0
 
-requirements = python3==3.14.2,kivy==2.3.1,kivymd==2.0.1,plyer
+requirements = python3==3.14.2,kivy==2.3.1,kivymd==1.2.0,plyer
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 android.api = 33
 android.minapi = 21
