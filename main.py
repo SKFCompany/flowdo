@@ -12,6 +12,10 @@
 #    ★ Улучшенные подзадачи с прогресс-баром
 # ═══════════════════════════════════════════════════════════════════════════
 
+from kivy.config import Config
+Config.set('graphics', 'orientation', 'portrait')
+Config.set('kivy', 'keyboard_mode', 'managed')
+
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
@@ -241,29 +245,42 @@ class VoiceAssistant:
         self._listening = False
 
     def _text_fallback(self, on_result):
-        box = MDBoxLayout(orientation="vertical", adaptive_height=True,
-                          spacing=S(8), padding=[S(4)])
-        nf  = MDTextField(hint_text="Введите команду голосом...",
-                          size_hint_y=None, height=S(52))
-        hint = MDLabel(
-            text="Примеры:\n'добавь задачу купить молоко'\n"
-                 "'отметь выполненной задачу работа'\n"
-                 "'что на сегодня?' / 'статистика'",
-            font_style="Caption", theme_text_color="Secondary",
-            size_hint_y=None, height=S(80))
-        box.add_widget(nf); box.add_widget(hint)
-        dlg = MDDialog(title="\U0001f3a4 Голосовая команда",
-                       type="custom", content_cls=box,
-                       buttons=[
-                           MDFlatButton(text="Отмена",
-                                        on_release=lambda *_: dlg.dismiss()),
-                           MDRaisedButton(text="Выполнить",
-                                          md_bg_color=C["accent"],
-                                          on_release=lambda *_: self._fb_ok(nf.text, dlg, on_result))])
-        dlg.open()
+        """Показываем компактный оверлей ввода команды (без лишнего диалога)."""
+        from kivy.uix.modalview import ModalView
+        mv = ModalView(background_color=(0,0,0,0.55), auto_dismiss=True,
+                       size_hint=(0.92, None), height=S(180),
+                       pos_hint={"center_x": 0.5, "center_y": 0.5})
+        card = MDCard(orientation="vertical", size_hint=(1,1),
+                      radius=[S(20)], elevation=8,
+                      md_bg_color=C["surf"], padding=[S(18), S(16)])
+        hdr = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(36))
+        hdr.add_widget(MDLabel(text="\U0001f3a4  Введите команду",
+                               font_style="Subtitle1", bold=True,
+                               theme_text_color="Custom", text_color=C["text"]))
+        close_btn = MDIconButton(icon="close", size_hint_x=None, width=S(36),
+                                 theme_text_color="Custom", text_color=C["text2"])
+        close_btn.bind(on_release=lambda *_: mv.dismiss())
+        hdr.add_widget(close_btn); card.add_widget(hdr)
 
-    def _fb_ok(self, text, dlg, on_result):
-        dlg.dismiss()
+        nf = MDTextField(hint_text="добавь задачу ... / что на сегодня?",
+                         size_hint_y=None, height=S(52))
+        card.add_widget(nf)
+
+        btn_row = MDBoxLayout(orientation="horizontal", spacing=S(10),
+                              size_hint_y=None, height=S(46))
+        cancel = MDFlatButton(text="Отмена", size_hint_x=0.4)
+        cancel.bind(on_release=lambda *_: mv.dismiss())
+        go = MDRaisedButton(text="Выполнить", size_hint_x=0.6,
+                            md_bg_color=C["accent"], elevation=0)
+        go.bind(on_release=lambda *_: self._fb_ok(nf.text, mv, on_result))
+        btn_row.add_widget(cancel); btn_row.add_widget(go)
+        card.add_widget(btn_row)
+        mv.add_widget(card); mv.open()
+        # фокус на поле ввода
+        Clock.schedule_once(lambda *_: setattr(nf, "focus", True), 0.3)
+
+    def _fb_ok(self, text, mv, on_result):
+        mv.dismiss()
         if text.strip():
             Clock.schedule_once(lambda *_: on_result(text.strip()), 0.1)
 
@@ -1395,9 +1412,17 @@ class DailyTodoApp(MDApp):
     def _wel_gender(self, g):
         tn="Бронза" if g=="male" else "Роза"
         C.update(THEMES[tn]); self.theme_name=tn
-        self._wg_fem.md_bg_color=C["accent"] if g=="female" else C["surf2"]
-        self._wg_mal.md_bg_color=C["accent"] if g=="male"   else C["surf2"]
-        self._w_quote.text=random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F)
+        self._apply_md_style()
+        # кнопки: активная — accent, неактивная — surf2
+        self._wg_fem.md_bg_color = C["accent"] if g=="female" else C["surf2"]
+        self._wg_mal.md_bg_color = C["accent"] if g=="male"   else C["surf2"]
+        # текст кнопок
+        try:
+            self._wg_fem.children[0].text_color = (1,1,1,1) if g=="female" else C["text"]
+            self._wg_mal.children[0].text_color = (1,1,1,1) if g=="male"   else C["text"]
+        except Exception:
+            pass
+        self._w_quote.text = random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F)
 
     def _welcome_go(self, *_):
         name=self._wf_name.text.strip()
@@ -1433,11 +1458,11 @@ class DailyTodoApp(MDApp):
             if self._fab.collide_point(*t.pos): self.open_task_form(); return True
         self._fab.bind(on_touch_up=_ft); root.add_widget(self._fab)
 
-        # Кнопка голосового помощника
-        self._voice_btn=MDCard(size_hint=(None,None), size=(S(56),S(56)),
-                                radius=[S(28)], elevation=8,
+        # Кнопка голосового помощника — левый нижний угол
+        self._voice_btn=MDCard(size_hint=(None,None), size=(S(48),S(48)),
+                                radius=[S(24)], elevation=6,
                                 md_bg_color=C["surf2"],
-                                pos_hint={"right":0.94,"y":0.20})
+                                pos_hint={"x":0.04,"y":0.10})
         self._voice_btn.add_widget(MDIconButton(
             icon="microphone", size_hint=(1,1),
             theme_text_color="Custom", text_color=C["accent"]))
@@ -1506,31 +1531,53 @@ class DailyTodoApp(MDApp):
 
     # ── Навигация ────────────────────────────────────────────────────────────
     def _make_nav(self):
-        is_fem=self._is_fem()
-        nav=MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                        height=S(60), md_bg_color=C["nav"],
-                        padding=[0,S(4),0,S(4)])
-        self._nav_btns={}
-        for tab,ico,lbl in [("tasks","home-outline","Сегодня"),
-                              ("calendar","calendar-outline","Календарь"),
-                              ("stats","chart-bar","Статистика"),
-                              ("settings","cog-outline","Настройки")]:
-            col=MDBoxLayout(orientation="vertical", spacing=S(2))
-            btn=MDIconButton(icon=ico, size_hint_x=1,
-                             theme_text_color="Custom", text_color=C["text2"])
-            btn.bind(on_release=lambda _,t=tab: self._nav_switch(t))
-            lbl_w=MDLabel(text=lbl, font_style="Caption",
-                          halign="center", theme_text_color="Custom",
-                          text_color=C["text2"], size_hint_y=None, height=S(16))
-            col.add_widget(btn); col.add_widget(lbl_w)
-            self._nav_btns[tab]=(btn,lbl_w); nav.add_widget(col)
+        # Навбар: только иконки, без подписей. Активная — pill-подсветка.
+        NAV_H = S(62)
+        nav = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                          height=NAV_H, md_bg_color=C["nav"],
+                          padding=[S(6), S(6), S(6), S(6)])
+        self._nav_btns = {}
+        TABS = [
+            ("tasks",    "home-variant",        ),
+            ("calendar", "calendar-month",      ),
+            ("stats",    "chart-bar",            ),
+            ("settings", "cog",                  ),
+        ]
+        for tab, ico in TABS:
+            # контейнер одной кнопки
+            col = FloatLayout(size_hint_x=1, size_hint_y=1)
+
+            # pill-фон (виден только для активной вкладки)
+            pill = Widget(size_hint=(None, None),
+                          size=(S(48), S(32)),
+                          pos_hint={"center_x": 0.5, "center_y": 0.5})
+            def _draw_pill(w, *_, c=C):
+                w.canvas.clear()
+                with w.canvas:
+                    Color(*c["acc_s"])
+                    RoundedRectangle(pos=w.pos, size=w.size, radius=[S(16)])
+            pill.bind(pos=_draw_pill, size=_draw_pill)
+            pill.opacity = 0   # скрыт по умолчанию
+            col.add_widget(pill)
+
+            # иконка
+            btn = MDIconButton(
+                icon=ico,
+                size_hint=(None, None), size=(S(44), S(44)),
+                pos_hint={"center_x": 0.5, "center_y": 0.5},
+                theme_text_color="Custom", text_color=C["text2"])
+            btn.bind(on_release=lambda _, t=tab: self._nav_switch(t))
+            col.add_widget(btn)
+
+            self._nav_btns[tab] = (btn, pill)
+            nav.add_widget(col)
         return nav
 
     def _nav_update(self, tab):
-        for t,(b,l) in self._nav_btns.items():
-            active=(t==tab)
-            b.text_color=C["accent"] if active else C["text2"]
-            l.text_color=C["accent"] if active else C["text2"]
+        for t, (b, pill) in self._nav_btns.items():
+            active = (t == tab)
+            b.text_color = C["accent"] if active else C["text2"]
+            pill.opacity = 1 if active else 0
 
     def _nav_switch(self, tab):
         if self.cur_tab==tab: return
@@ -1551,90 +1598,116 @@ class DailyTodoApp(MDApp):
     #  СТРАНИЦА: ЗАДАЧИ
     # ════════════════════════════════════════════════════════════════════════
     def _mk_tasks_page(self):
-        is_fem=self._is_fem()
-        pg=MDBoxLayout(orientation="vertical")
+        """
+        Архитектура:
+          FloatLayout
+            ├─ ScrollView (size_hint 1,1)  ← весь контент, включая шапку
+            │    └─ inn (adaptive_height)
+            │         ├─ _scroll_header  (задача дня + категории)  [скроллится]
+            │         ├─ фильтры
+            │         └─ task_list
+            └─ _sticky_header  (копия шапки, position top, hidden по умолчанию)
+                               ← появляется при прокрутке ВНИЗ, исчезает при возврате
 
-        # Задача дня
-        day_c=MDCard(size_hint_y=None, height=S(96),
-                     radius=[S(18)] if is_fem else [S(10)],
-                     elevation=2 if is_fem else 0,
-                     md_bg_color=C["surf"], padding=[S(16),S(14)])
-        dc=MDBoxLayout(orientation="horizontal", spacing=S(12))
-        di=MDBoxLayout(orientation="vertical", spacing=S(4))
+        При прокрутке вверх sticky мгновенно прячется — и видна оригинальная шапка.
+        При прокрутке вниз (шапка ушла вверх за экран) sticky плавно появляется.
+        """
+        is_fem=self._is_fem()
+        HEADER_H = S(138)   # высота шапки (задача дня S(96) + категории S(42))
+
+        fl = FloatLayout()
+
+        # ════════════════════════════════════════════════════════════════
+        # 1. Один ScrollView — ВСЁ прокручивается
+        # ════════════════════════════════════════════════════════════════
+        sv = ScrollView(size_hint=(1,1))
+        inn = MDBoxLayout(orientation="vertical", adaptive_height=True,
+                          spacing=S(8), padding=[S(12),S(8),S(12),S(80)])
+        sv.add_widget(inn)
+
+        # ── Шапка внутри скролла ─────────────────────────────────────
+        self._scroll_header = MDBoxLayout(orientation="vertical",
+                                          size_hint_y=None, height=HEADER_H)
+
+        # — Задача дня —
+        day_c = MDCard(size_hint_y=None, height=S(96),
+                       radius=[S(18)] if is_fem else [S(10)],
+                       elevation=2 if is_fem else 0,
+                       md_bg_color=C["surf"], padding=[S(16),S(14)])
+        dc = MDBoxLayout(orientation="horizontal", spacing=S(12))
+        di = MDBoxLayout(orientation="vertical", spacing=S(4))
         di.add_widget(MDLabel(text="\u2b50 Задача дня", font_style="Caption",
                                theme_text_color="Custom", text_color=C["text2"],
                                size_hint_y=None, height=S(18)))
-        self._day_task_lbl=MDLabel(text="Загрузка...", font_style="Subtitle1",
-                                    bold=True, theme_text_color="Custom",
-                                    text_color=C["text"], size_hint_y=None, height=S(30))
+        self._day_task_lbl = MDLabel(text="Загрузка...", font_style="Subtitle1",
+                                     bold=True, theme_text_color="Custom",
+                                     text_color=C["text"], size_hint_y=None, height=S(30))
         di.add_widget(self._day_task_lbl)
-        self._day_task_sub=MDLabel(text="", font_style="Caption",
-                                    theme_text_color="Custom", text_color=C["text2"],
-                                    size_hint_y=None, height=S(20))
+        self._day_task_sub = MDLabel(text="", font_style="Caption",
+                                     theme_text_color="Custom", text_color=C["text2"],
+                                     size_hint_y=None, height=S(20))
         di.add_widget(self._day_task_sub); dc.add_widget(di)
 
-        # мини прогресс
-        prog_box=MDBoxLayout(orientation="vertical", size_hint_x=None,
-                              width=S(56), spacing=S(4))
-        self._day_pct_lbl=MDLabel(text="0%", font_style="Subtitle2", bold=True,
-                                   halign="center", theme_text_color="Custom",
-                                   text_color=C["accent"], size_hint_y=None, height=S(24))
+        prog_box = MDBoxLayout(orientation="vertical", size_hint_x=None,
+                               width=S(56), spacing=S(4))
+        self._day_pct_lbl = MDLabel(text="0%", font_style="Subtitle2", bold=True,
+                                    halign="center", theme_text_color="Custom",
+                                    text_color=C["accent"], size_hint_y=None, height=S(24))
         prog_box.add_widget(self._day_pct_lbl)
-        self._prog_bg=Widget(size_hint=(1,1))
-        self._prog_fill=0.0
+        self._prog_bg = Widget(size_hint=(1,1))
+        self._prog_fill = 0.0
         def _draw_prog(w,*_):
             w.canvas.clear()
             with w.canvas:
                 Color(*C["acc_s"])
                 RoundedRectangle(pos=w.pos, size=w.size, radius=[S(5)])
-                if self._prog_fill>0:
+                if self._prog_fill > 0:
                     Color(*C["accent"])
                     RoundedRectangle(pos=w.pos,
-                                     size=(w.width,max(w.height*self._prog_fill,S(4))),
+                                     size=(w.width, max(w.height*self._prog_fill, S(4))),
                                      radius=[S(5)])
         self._prog_bg.bind(pos=_draw_prog, size=_draw_prog)
-        self._draw_prog=_draw_prog; prog_box.add_widget(self._prog_bg)
-        self._pct_lbl=MDLabel(text="0%", font_style="Caption",
-                               halign="center", theme_text_color="Secondary",
-                               size_hint_y=None, height=S(16))
+        self._draw_prog = _draw_prog
+        prog_box.add_widget(self._prog_bg)
+        self._pct_lbl = MDLabel(text="0%", font_style="Caption",
+                                halign="center", theme_text_color="Secondary",
+                                size_hint_y=None, height=S(16))
         prog_box.add_widget(self._pct_lbl); dc.add_widget(prog_box)
         day_c.add_widget(dc)
-        pg.add_widget(day_c)
+        self._scroll_header.add_widget(day_c)
 
-        # Категории
-        cat_sv=ScrollView(size_hint_y=None, height=S(42), do_scroll_y=False)
-        self.cat_bar=MDBoxLayout(orientation="horizontal", size_hint_x=None, spacing=S(8),
-                                  padding=[S(14),S(4),S(14),S(4)])
+        # — Категории —
+        cat_sv = ScrollView(size_hint_y=None, height=S(42), do_scroll_y=False)
+        self.cat_bar = MDBoxLayout(orientation="horizontal", size_hint_x=None,
+                                   spacing=S(8), padding=[S(14),S(4),S(14),S(4)])
         self.cat_bar.bind(minimum_width=self.cat_bar.setter("width"))
-        self._cat_btns={}
+        self._cat_btns = {}
         for cat in self.categories:
-            b=self._mk_cat_btn(cat); self._cat_btns[cat]=b; self.cat_bar.add_widget(b)
-        gear=MDRaisedButton(text="", size_hint_x=None, width=S(36),
-                             size_hint_y=None, height=S(32), elevation=0,
-                             md_bg_color=C["surf2"])
+            b = self._mk_cat_btn(cat); self._cat_btns[cat]=b; self.cat_bar.add_widget(b)
+        gear = MDRaisedButton(text="", size_hint_x=None, width=S(36),
+                              size_hint_y=None, height=S(32), elevation=0,
+                              md_bg_color=C["surf2"])
         gear.add_widget(MDIconButton(icon="cog-outline", size_hint=(1,1),
-                                      theme_text_color="Custom", text_color=C["text2"]))
-        gear.bind(on_release=self._manage_cats); self.cat_bar.add_widget(gear)
-        cat_sv.add_widget(self.cat_bar); pg.add_widget(cat_sv)
+                                     theme_text_color="Custom", text_color=C["text2"]))
+        gear.bind(on_release=self._manage_cats)
+        self.cat_bar.add_widget(gear)
+        cat_sv.add_widget(self.cat_bar)
+        self._scroll_header.add_widget(cat_sv)
+        inn.add_widget(self._scroll_header)
 
-        sv=ScrollView()
-        inn=MDBoxLayout(orientation="vertical", adaptive_height=True,
-                        spacing=S(8), padding=[S(12),S(8),S(12),S(80)])
-        sv.add_widget(inn)
-
-        # Фильтры
-        flt_sv=ScrollView(size_hint_y=None, height=S(38), do_scroll_y=False)
-        flt_r=MDBoxLayout(orientation="horizontal", size_hint_x=None,
-                          spacing=S(6), padding=[0,S(2)])
+        # ── Фильтры ──────────────────────────────────────────────────
+        flt_sv = ScrollView(size_hint_y=None, height=S(38), do_scroll_y=False)
+        flt_r = MDBoxLayout(orientation="horizontal", size_hint_x=None,
+                            spacing=S(6), padding=[0,S(2)])
         flt_r.bind(minimum_width=flt_r.setter("width"))
         def _mk_flt(text, cb):
-            card=MDCard(size_hint_x=None, width=S(6*len(text)+24),
-                        size_hint_y=None, height=S(30),
-                        radius=[S(15)] if is_fem else [S(6)],
-                        elevation=0, md_bg_color=C["surf2"])
-            lbl=MDLabel(text=text, font_style="Caption",
-                        halign="center", valign="middle",
-                        theme_text_color="Custom", text_color=C["text"], size_hint=(1,1))
+            card = MDCard(size_hint_x=None, width=S(6*len(text)+24),
+                          size_hint_y=None, height=S(30),
+                          radius=[S(15)] if is_fem else [S(6)],
+                          elevation=0, md_bg_color=C["surf2"])
+            lbl = MDLabel(text=text, font_style="Caption",
+                          halign="center", valign="middle",
+                          theme_text_color="Custom", text_color=C["text"], size_hint=(1,1))
             card._lbl=lbl; card.add_widget(lbl)
             def _tap(w,t):
                 if card.collide_point(*t.pos): cb(); return True
@@ -1647,11 +1720,107 @@ class DailyTodoApp(MDApp):
             flt_r.add_widget(b)
         flt_sv.add_widget(flt_r); inn.add_widget(flt_sv)
 
-        # Список задач
-        self.task_list=MDBoxLayout(orientation="vertical", adaptive_height=True,
-                                    spacing=S(10) if is_fem else S(6))
+        # ── Список задач ──────────────────────────────────────────────
+        self.task_list = MDBoxLayout(orientation="vertical", adaptive_height=True,
+                                     spacing=S(10) if is_fem else S(6))
         inn.add_widget(self.task_list)
-        pg.add_widget(sv)
+        fl.add_widget(sv)
+
+        # ════════════════════════════════════════════════════════════════
+        # 2. Sticky-шапка — Float поверх, появляется при прокрутке вниз
+        # ════════════════════════════════════════════════════════════════
+        self._tasks_header = MDBoxLayout(
+            orientation="vertical", size_hint=(1, None), height=HEADER_H,
+            pos_hint={"top": 1}, opacity=0)
+        with self._tasks_header.canvas.before:
+            Color(*C["bg"]); _hbg = Rectangle(size=(Window.width, HEADER_H), pos=(0,0))
+        def _upd_hbg(w,*_):
+            _hbg.size=(w.width, HEADER_H); _hbg.pos=(w.x, w.y)
+        self._tasks_header.bind(pos=_upd_hbg, size=_upd_hbg)
+
+        # — Задача дня (sticky-копия меток, не дублируем виджеты — просто рамка) —
+        sticky_day = MDCard(size_hint_y=None, height=S(96),
+                            radius=[S(18)] if is_fem else [S(10)],
+                            elevation=4, md_bg_color=C["surf"],
+                            padding=[S(16),S(14)])
+        sticky_dc = MDBoxLayout(orientation="horizontal", spacing=S(12))
+        sticky_di = MDBoxLayout(orientation="vertical", spacing=S(4))
+        sticky_di.add_widget(MDLabel(text="\u2b50 Задача дня", font_style="Caption",
+                                      theme_text_color="Custom", text_color=C["text2"],
+                                      size_hint_y=None, height=S(18)))
+        self._sticky_task_lbl = MDLabel(text="", font_style="Subtitle1", bold=True,
+                                         theme_text_color="Custom", text_color=C["text"],
+                                         size_hint_y=None, height=S(30))
+        sticky_di.add_widget(self._sticky_task_lbl)
+        self._sticky_task_sub = MDLabel(text="", font_style="Caption",
+                                         theme_text_color="Custom", text_color=C["text2"],
+                                         size_hint_y=None, height=S(20))
+        sticky_di.add_widget(self._sticky_task_sub)
+        sticky_dc.add_widget(sticky_di)
+        # правая часть — просто процент
+        self._sticky_pct = MDLabel(text="0%", font_style="Subtitle2", bold=True,
+                                    halign="center", theme_text_color="Custom",
+                                    text_color=C["accent"],
+                                    size_hint_x=None, width=S(56))
+        sticky_dc.add_widget(self._sticky_pct)
+        sticky_day.add_widget(sticky_dc)
+        self._tasks_header.add_widget(sticky_day)
+
+        # — Категории (sticky-полоска, та же cat_bar через proxy) —
+        sticky_cat_sv = ScrollView(size_hint_y=None, height=S(42), do_scroll_y=False)
+        self._sticky_cat_bar = MDBoxLayout(orientation="horizontal", size_hint_x=None,
+                                            spacing=S(8), padding=[S(14),S(4),S(14),S(4)])
+        self._sticky_cat_bar.bind(minimum_width=self._sticky_cat_bar.setter("width"))
+        # Клоны кнопок категорий — нажатие работает через оригинальный _switch_cat
+        for cat in self.categories:
+            b = self._mk_cat_btn(cat)
+            self._sticky_cat_bar.add_widget(b)
+        sticky_cat_sv.add_widget(self._sticky_cat_bar)
+        self._tasks_header.add_widget(sticky_cat_sv)
+        fl.add_widget(self._tasks_header)
+
+        # ════════════════════════════════════════════════════════════════
+        # 3. Логика показа/скрытия sticky по скроллу
+        # ════════════════════════════════════════════════════════════════
+        self._last_scroll_y = 1.0
+
+        def _on_scroll(sv_inst, scroll_y):
+            # scroll_y: 1.0 = самый верх, 0.0 = самый низ
+            going_up   = scroll_y > self._last_scroll_y
+            going_down = scroll_y < self._last_scroll_y
+            self._last_scroll_y = scroll_y
+
+            # Считаем, ушла ли оригинальная шапка за край экрана.
+            # Высота контента и вьюпорта:
+            content_h  = inn.height
+            viewport_h = sv_inst.height
+            scrollable = max(content_h - viewport_h, 1)
+            # pixels прокручено от верха:
+            scrolled_px = (1.0 - scroll_y) * scrollable
+
+            header_gone = scrolled_px > HEADER_H  # шапка ушла с экрана
+
+            if going_up:
+                # Прокрутка ВВЕРХ — немедленно прячем sticky
+                from kivy.animation import Animation
+                Animation.cancel_all(self._tasks_header, "opacity")
+                self._tasks_header.opacity = 0
+            elif going_down and header_gone:
+                # Прокрутка ВНИЗ и шапка за экраном — плавно показываем sticky
+                from kivy.animation import Animation
+                if self._tasks_header.opacity < 1:
+                    Animation(opacity=1, d=0.18, t="out_quad").start(self._tasks_header)
+            # Синхронизируем тексты sticky с оригиналом
+            if hasattr(self, "_sticky_task_lbl"):
+                self._sticky_task_lbl.text = self._day_task_lbl.text
+                self._sticky_task_sub.text = self._day_task_sub.text
+                self._sticky_pct.text      = self._day_pct_lbl.text
+
+        sv.bind(scroll_y=_on_scroll)
+
+        # Обёртка страницы
+        pg = MDBoxLayout(orientation="vertical")
+        pg.add_widget(fl)
         return pg
 
     def _mk_cat_btn(self, cat):
@@ -2658,7 +2827,8 @@ class DailyTodoApp(MDApp):
                      "_motiv_lbl","_motiv_sub","_mood_btns","_sd_lbl","_sf_lbl",
                      "_sp_badge","_s_name","_g_fem","_g_mal","_exp_lbl",
                      "_cats_box","_cal_month_lbl","_sp_btns",
-                     "_goal_pct_lbl","_goal_prog","_draw_goal"):
+                     "_goal_pct_lbl","_goal_prog","_draw_goal",
+                     "_tasks_header","_nav_btns"):
             if hasattr(self,attr):
                 try: delattr(self,attr)
                 except: pass
