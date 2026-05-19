@@ -692,6 +692,9 @@ class CalendarWidget(MDBoxLayout):
         grid = GridLayout(cols=7, size_hint_y=None, spacing=S(1),
                           row_force_default=True, row_default_height=CELL)
         grid.bind(minimum_height=grid.setter("height"))
+        # Принудительно задаём высоту через число строк
+        n_rows = (offset + n_days + 6) // 7
+        grid.height = CELL * n_rows + S(1) * (n_rows - 1)
 
         first  = date(self.yr, self.mo, 1)
         offset = first.weekday()          # 0=Пн
@@ -1091,7 +1094,8 @@ class TaskFormScreen(MDScreen):
                                          theme_text_color="Custom", text_color=tc))
             _lbl_tmp=MDLabel(text=lbl_t, font_style="Caption",
                                    theme_text_color="Custom", text_color=tc,
-                                   halign="left", valign="middle")
+                                   halign="left", valign="middle",
+                                   shorten=True, shorten_from="right")
             br2.add_widget(_lbl_tmp)
             _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
             btn.add_widget(br2)
@@ -1274,13 +1278,14 @@ class TaskFormScreen(MDScreen):
         row.add_widget(MDIconButton(icon=icon, size_hint_x=None, width=S(34),
                                     theme_text_color="Custom", text_color=C["text2"]))
         lbl_w=MDLabel(text=label, font_style="Body1", theme_text_color="Primary",
-                      halign="left", valign="middle")
+                      halign="left", valign="middle",
+                      shorten=True, shorten_from="right")
         lbl_w.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         row.add_widget(lbl_w)
         val_lbl=MDLabel(text=value, font_style="Body2",
                         theme_text_color="Secondary", halign="right",
                         valign="middle", size_hint_x=None, width=S(128))
-        val_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        val_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],s[1])))
         row.add_widget(val_lbl)
         row.add_widget(MDIconButton(icon="chevron-right", size_hint_x=None, width=S(24),
                                     theme_text_color="Custom", text_color=C["text2"]))
@@ -1386,7 +1391,7 @@ class TaskFormScreen(MDScreen):
     def _save(self):
         title=self.tf_title.text.strip()
         if not title: self.tf_title.hint_text="Введите название!"; return
-        data={"title":title,"comment":getattr(self,"_note_text",getattr(self.tf_note,"text","")).strip(),
+        data={"title":title,"comment":getattr(self,"_note_text","").strip(),
               "category":self._sel_cat,"priority":self._sel_prio,
               "date":self._date_val,"time":self._time_val,
               "reminder":self._remind_val,"repeat":self._repeat_val,
@@ -1773,16 +1778,24 @@ class DailyTodoApp(MDApp):
         tn="Бронза" if g=="male" else "Роза"
         C.update(THEMES[tn]); self.theme_name=tn
         self._apply_md_style()
-        # кнопки: активная — accent, неактивная — surf2
-        self._wg_fem.md_bg_color = C["accent"] if g=="female" else C["surf2"]
-        self._wg_mal.md_bg_color = C["accent"] if g=="male"   else C["surf2"]
-        # текст кнопок
+        # Пересоздаём welcome экран с новыми цветами
+        saved_name = getattr(self._wf_name, "text", "") if hasattr(self, "_wf_name") else ""
+        if self.sm.has_screen("welcome"):
+            self.sm.remove_widget(self.sm.get_screen("welcome"))
+        self._build_welcome()
+        # Восстанавливаем введённое имя
+        if saved_name and hasattr(self, "_wf_name"):
+            self._wf_name.text = saved_name
+        # Подсвечиваем активную кнопку
         try:
+            self._wg_fem.md_bg_color = C["accent"] if g=="female" else C["surf2"]
+            self._wg_mal.md_bg_color = C["accent"] if g=="male"   else C["surf2"]
             self._wg_fem.children[0].text_color = (1,1,1,1) if g=="female" else C["text"]
             self._wg_mal.children[0].text_color = (1,1,1,1) if g=="male"   else C["text"]
         except Exception:
             pass
-        self._w_quote.text = random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F)
+        if hasattr(self, "_w_quote"):
+            self._w_quote.text = random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F)
 
     def _welcome_go(self, *_):
         name=self._wf_name.text.strip()
@@ -2616,7 +2629,7 @@ class DailyTodoApp(MDApp):
             self._mood_btns=[]
 
         # Мотивация
-        mot=MDCard(size_hint_y=None, height=S(78) if not is_fem else S(56),
+        mot=MDCard(size_hint_y=None, height=S(90) if not is_fem else S(56),
                    radius=[S(12)], elevation=0,
                    md_bg_color=C["surf"], padding=[S(16),S(12)])
         mi=MDBoxLayout(orientation="vertical", spacing=S(4))
