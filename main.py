@@ -692,14 +692,14 @@ class CalendarWidget(MDBoxLayout):
         grid = GridLayout(cols=7, size_hint_y=None, spacing=S(1),
                           row_force_default=True, row_default_height=CELL)
         grid.bind(minimum_height=grid.setter("height"))
-        # Принудительно задаём высоту через число строк
-        n_rows = (offset + n_days + 6) // 7
-        grid.height = CELL * n_rows + S(1) * (n_rows - 1)
 
         first  = date(self.yr, self.mo, 1)
         offset = first.weekday()          # 0=Пн
         n_days = cal_module.monthrange(self.yr, self.mo)[1]
         today  = date.today()
+        # Принудительно задаём высоту через число строк
+        n_rows = (offset + n_days + 6) // 7
+        grid.height = CELL * n_rows + S(1) * (n_rows - 1)
 
         for _ in range(offset):
             grid.add_widget(Widget(size_hint_y=None, height=CELL))
