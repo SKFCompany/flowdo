@@ -39,6 +39,21 @@ import calendar as cal_module
 import json, os, random, math, threading
 
 # ───────────────────────────────────────────────────────────────────────────
+#  Патч MDLabel — автоматически привязывает text_size к size
+#  Это предотвращает вертикальный рендер текста во всём приложении
+# ───────────────────────────────────────────────────────────────────────────
+_MDLabel_orig_init = MDLabel.__init__
+def _mdlabel_patched_init(self, **kwargs):
+    _MDLabel_orig_init(self, **kwargs)
+    def _on_size(w, s):
+        if w.halign in ("left","center","right"):
+            w.text_size = (s[0], None)
+    self.bind(size=_on_size)
+    if self.size[0] > 0:
+        self.text_size = (self.size[0], None)
+MDLabel.__init__ = _mdlabel_patched_init
+
+# ───────────────────────────────────────────────────────────────────────────
 #  Голосовой модуль (мягкий импорт — работает и без vosk/pyttsx3)
 # ───────────────────────────────────────────────────────────────────────────
 try:
@@ -1040,6 +1055,7 @@ class TaskFormScreen(MDScreen):
         hdr=MDBoxLayout(orientation="horizontal", size_hint_y=None,
                         height=S(56), md_bg_color=C["surf"],
                         padding=[S(4),S(8),S(16),S(8)])
+        hdr.bind(on_touch_down=lambda w,t: bool(w.collide_point(*t.pos)))
         back=MDIconButton(icon="chevron-left", size_hint_x=None, width=S(44),
                           theme_text_color="Custom", text_color=C["text2"])
         back.bind(on_release=lambda *_: self._cancel()); hdr.add_widget(back)
@@ -1052,7 +1068,8 @@ class TaskFormScreen(MDScreen):
                                theme_text_color="Custom", text_color=C["accent"])
         save_btn.bind(on_release=lambda *_: self._save()); hdr.add_widget(save_btn)
         root.add_widget(hdr)
-        sv=ScrollView(do_scroll_x=False)
+        sv=ScrollView(do_scroll_x=False, do_scroll_y=True,
+                     bar_width=S(3), scroll_type=['bars','content'])
         inn=MDBoxLayout(orientation="vertical", adaptive_height=True,
                         spacing=S(0), padding=[S(16),S(14),S(16),S(30)])
         # Заголовок
@@ -2286,11 +2303,16 @@ class DailyTodoApp(MDApp):
                         radius=[S(14)] if is_fem else [S(8)],
                         elevation=1 if is_fem else 0,
                         md_bg_color=C["surf"], padding=[S(8),S(6)])
-        cal_card.bind(minimum_height=cal_card.setter("height"))
+        cal_card.height = S(360)  # начальная высота
         task_dates={t.get("date","") for t in self.tasks.values()}
         self.cal_w=CalendarWidget(on_select=self._on_cal_select, task_dates=task_dates)
         cal_card.add_widget(self.cal_w)
-        self.cal_w.bind(height=cal_card.setter("height"))
+        def _sync_cal_height(w, h):
+            cal_card.height = h + S(12)
+        self.cal_w.bind(height=_sync_cal_height)
+        # Принудительно задаём начальную высоту
+        cal_card.height = self.cal_w.height + S(12)
+        Clock.schedule_once(lambda *_: _sync_cal_height(self.cal_w, self.cal_w.height), 0.3)
         inn.add_widget(cal_card)
         self._cal_day_lbl=MDLabel(text="Сегодня", font_style="Subtitle1", bold=True,
                                    theme_text_color="Primary",
@@ -2486,16 +2508,24 @@ class DailyTodoApp(MDApp):
         top=MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(94))
         lc=MDBoxLayout(orientation="vertical", spacing=S(4))
         self._sd_lbl=MDLabel(text="0", font_style="H3", bold=True,
-                              theme_text_color="Primary", size_hint_y=None, height=S(50))
+                              theme_text_color="Primary", size_hint_y=None, height=S(50),
+                              halign="left", valign="middle",
+                              text_size=(Window.width*0.52, S(50)))
         self._sf_lbl=MDLabel(text="выполнено из 0", font_style="Caption",
-                              theme_text_color="Secondary", size_hint_y=None, height=S(20))
+                              theme_text_color="Secondary", size_hint_y=None, height=S(20),
+                              halign="left", valign="middle",
+                              text_size=(Window.width*0.52, S(20)))
         self._sp_badge=MDLabel(text="0%", font_style="Caption", bold=True,
                                 theme_text_color="Custom", text_color=C["accent"],
-                                size_hint_y=None, height=S(18))
+                                size_hint_y=None, height=S(18),
+                                halign="left", valign="middle",
+                                text_size=(Window.width*0.52, S(18)))
         lc.add_widget(self._sd_lbl); lc.add_widget(self._sf_lbl)
         lc.add_widget(self._sp_badge); top.add_widget(lc)
         ring_fl,self._ring_pct_lbl,self._ring_w=make_ring_widget(
             size_dp=92, get_pct=lambda: self._ring_pct, thick_dp=7)
+        ring_fl.size_hint=(None,None)
+        ring_fl.size=(S(92),S(92))
         top.add_widget(ring_fl); mc_in.add_widget(top)
         _lbl_tmp=MDLabel(text="Продуктивность", font_style="Caption",
                                   theme_text_color="Secondary", size_hint_y=None, height=S(18),
@@ -2515,17 +2545,18 @@ class DailyTodoApp(MDApp):
                      md_bg_color=C["surf"], padding=[S(14),S(10)])
             ci=MDBoxLayout(orientation="vertical", spacing=S(2))
             _lbl_tmp=MDLabel(text=ico_txt, font_style="H5", size_hint_y=None, height=S(34),
-                          halign="left", valign="middle")
+                          halign="left", valign="middle",
+                          text_size=(Window.width * 0.4, S(34)))
             ci.add_widget(_lbl_tmp)
-            _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
             _lbl_tmp=MDLabel(text=title, font_style="Caption",
                                    theme_text_color="Secondary", size_hint_y=None, height=S(18),
-                          halign="left", valign="middle")
+                          halign="left", valign="middle",
+                          text_size=(Window.width * 0.4, S(18)))
             ci.add_widget(_lbl_tmp)
-            _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
             lbl=MDLabel(text="0", font_style="H5", bold=True,
-                        theme_text_color="Primary", size_hint_y=None, height=S(30))
-            lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
+                        theme_text_color="Primary", size_hint_y=None, height=S(30),
+                        halign="left", valign="middle",
+                        text_size=(Window.width * 0.4, S(30)))
             setattr(self,attr,lbl); ci.add_widget(lbl)
             _lbl_tmp=MDLabel(text=sub, font_style="Caption",
                                    theme_text_color="Secondary", size_hint_y=None, height=S(14),
