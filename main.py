@@ -25,25 +25,65 @@ def _register_emoji_font():
     import os
     from kivy.core.text import LabelBase
     candidates = [
-        # Linux / Android
+        # Android — разные версии и производители
         "/system/fonts/NotoColorEmoji.ttf",
+        "/system/fonts/NotoColorEmojiFlags.ttf",
+        "/system/fonts/NotoEmoji.ttf",
+        "/system/fonts/emoji.ttf",
+        "/system/fonts/AndroidEmoji.ttf",
+        # Android через Kivy/Buildozer (шрифты копируются в assets)
+        "fonts/NotoColorEmoji.ttf",
+        "fonts/NotoEmoji.ttf",
+        # Путь внутри apk (Buildozer кладёт ресурсы сюда)
+        os.path.join(os.path.dirname(__file__), "fonts", "NotoColorEmoji.ttf"),
+        os.path.join(os.path.dirname(__file__), "fonts", "NotoEmoji.ttf"),
+        # Linux
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
         "/usr/share/fonts/noto/NotoColorEmoji.ttf",
+        "/usr/share/fonts/truetype/noto/NotoEmoji.ttf",
         # Windows
         r"C:\Windows\Fonts\seguiemj.ttf",
+        r"C:\Windows\Fonts\Segoe UI Emoji.ttf",
         # macOS
         "/System/Library/Fonts/Apple Color Emoji.ttc",
     ]
     for path in candidates:
-        if os.path.exists(path):
+        if path and os.path.exists(path):
             try:
                 LabelBase.register("EmojiFont", path)
                 return "EmojiFont"
             except Exception:
                 pass
+    # Последний шанс — пробуем скачать NotoEmoji если есть интернет
+    # (только не на Android где шрифт должен быть системным)
     return None   # останется None — будем использовать стандартный
 
 EMOJI_FONT = _register_emoji_font()
+
+# На Android — если шрифт не найден системный, скачиваем NotoEmoji в папку приложения
+if EMOJI_FONT is None and PLATFORM == "android":
+    def _download_emoji_font():
+        import threading as _et, urllib.request as _ur, os as _os
+        def _fetch():
+            try:
+                # Папка приложения на Android
+                _app_dir = _os.path.dirname(_os.path.abspath(__file__))
+                _font_dir = _os.path.join(_app_dir, "fonts")
+                _os.makedirs(_font_dir, exist_ok=True)
+                _dest = _os.path.join(_font_dir, "NotoEmoji.ttf")
+                if not _os.path.exists(_dest):
+                    # NotoEmoji (без цвета — совместим с Kivy на Android)
+                    _url = "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoEmoji-Regular.ttf"
+                    _ur.urlretrieve(_url, _dest)
+                # Регистрируем
+                from kivy.core.text import LabelBase
+                LabelBase.register("EmojiFont", _dest)
+                global EMOJI_FONT
+                EMOJI_FONT = "EmojiFont"
+            except Exception:
+                pass
+        _et.Thread(target=_fetch, daemon=True).start()
+    _download_emoji_font()
 
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -2189,6 +2229,7 @@ class DailyTodoApp(MDApp):
         self.cur_tab     = "tasks"
         self._cal_sel    = date.today()
         self.user_name   = ""
+        self.user_emoji  = "😊"   # эмодзи настроения пользователя
         self.theme_name  = "Роза"
         self._save_ev    = None
         self._ref_ev     = None
@@ -2413,6 +2454,8 @@ class DailyTodoApp(MDApp):
         self._fab.add_widget(_lbl_tmp)
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
         def _ft(w,t):
+            # Реагируем ТОЛЬКО если кнопка видима (вкладка tasks)
+            if w.opacity < 0.5: return False
             if self._fab.collide_point(*t.pos): self.open_task_form(); return True
         self._fab.bind(on_touch_up=_ft); root.add_widget(self._fab)
 
@@ -2425,6 +2468,8 @@ class DailyTodoApp(MDApp):
             icon="microphone", size_hint=(1,1),
             theme_text_color="Custom", text_color=C["accent"]))
         def _vt(w,t):
+            # Реагируем ТОЛЬКО если кнопка видима (вкладка tasks)
+            if w.opacity < 0.5: return False
             if self._voice_btn.collide_point(*t.pos): self._start_voice(); return True
         self._voice_btn.bind(on_touch_up=_vt); root.add_widget(self._voice_btn)
 
@@ -2457,7 +2502,7 @@ class DailyTodoApp(MDApp):
                             size=(S(36),S(36)), theme_text_color="Custom", text_color=C["accent"])
             av.bind(on_release=lambda *_: self._nav_switch("settings"))
             r1.add_widget(av); tb.add_widget(r1)
-            self._tb_name=EmojiLabel(text=f"{self.user_name} \U0001f495",
+            self._tb_name=EmojiLabel(text=f"{self.user_name} {self.user_emoji}",
                                    font_style="H5", bold=True,
                                    theme_text_color="Custom", text_color=C["accent"],
                                    halign="left", valign="middle",
@@ -2574,10 +2619,13 @@ class DailyTodoApp(MDApp):
             Clock.schedule_once(_stats_open, 0.05)
         if tab=="calendar":Clock.schedule_once(lambda *_: self._refresh_cal(), 0.05)
         if tab=="settings":Clock.schedule_once(lambda *_: self._rebuild_cats_list(), 0.05)
-        # скрыть/показать FAB и голос
-        fab_vis = (tab=="tasks" or tab=="calendar")
-        self._fab.opacity    = 1 if fab_vis else 0
+        # скрыть/показать FAB и голос — ТОЛЬКО на вкладке задач
+        fab_vis = (tab == "tasks")
+        self._fab.opacity       = 1 if fab_vis else 0
         self._voice_btn.opacity = 1 if fab_vis else 0
+        # Полностью отключаем touch-события когда скрыты
+        self._fab.disabled       = not fab_vis
+        self._voice_btn.disabled = not fab_vis
 
     # ════════════════════════════════════════════════════════════════════════
     #  СТРАНИЦА: ЗАДАЧИ
@@ -3470,9 +3518,10 @@ class DailyTodoApp(MDApp):
         pr=MDBoxLayout(orientation="horizontal", spacing=S(12))
         av=MDCard(size_hint=(None,None), size=(S(46),S(46)), radius=[S(23)],
                   elevation=0, md_bg_color=C["accent"])
-        av.add_widget(MDIconButton(
-            icon="account-heart-outline" if is_fem else "account-outline",
-            theme_text_color="Custom", text_color=(1,1,1,1), size_hint=(1,1)))
+        self._s_emoji_lbl = EmojiLabel(
+            text=self.user_emoji, font_style="H5",
+            halign="center", valign="middle")
+        av.add_widget(self._s_emoji_lbl)
         pr.add_widget(av)
         pn=MDBoxLayout(orientation="vertical", spacing=S(2))
         self._s_name=MDLabel(text=self.user_name or "Имя", font_style="Subtitle1",
@@ -3848,23 +3897,150 @@ class DailyTodoApp(MDApp):
         dlg.dismiss()
 
     def _edit_profile(self):
-        box=MDBoxLayout(orientation="vertical", adaptive_height=True,
-                        spacing=S(8), padding=[S(4)])
-        nf=MDTextField(hint_text="Имя", text=self.user_name,
-                       size_hint_y=None, height=S(52))
-        box.add_widget(nf)
-        dlg=MDDialog(title="Редактировать профиль", type="custom", content_cls=box,
-                     buttons=[
-                         MDFlatButton(text="Отмена", on_release=lambda *_: dlg.dismiss()),
-                         MDRaisedButton(text="Сохранить", md_bg_color=C["accent"],
-                                        on_release=lambda *_: self._save_profile(nf.text,dlg))])
+        # ── Список эмодзи по категориям ──────────────────────────────────────
+        EMOJI_GROUPS = {
+            "😊 Настроение": [
+                "😊","😄","😁","😎","🤩","😍","🥰","😇",
+                "😌","🙂","😐","😔","😢","😭","😤","😡",
+                "🥳","🤗","😴","🤔","😏","🥺","😬","🤯",
+            ],
+            "💪 Активность": [
+                "💪","🏃","🧘","🏋️","🚴","🏊","⚽","🎯",
+                "🔥","⚡","🌟","✨","🚀","💥","🎉","🏆",
+            ],
+            "🌿 Природа": [
+                "🌸","🌺","🌻","🌹","🍀","🌿","🌊","🌈",
+                "☀️","🌙","⭐","❄️","🍁","🌴","🦋","🐾",
+            ],
+            "❤️ Сердечки": [
+                "❤️","🧡","💛","💚","💙","💜","🖤","🤍",
+                "💖","💗","💓","💞","💝","💘","♥️","🫀",
+            ],
+            "😺 Животные": [
+                "😺","🐶","🐱","🐻","🐼","🦊","🐨","🦁",
+                "🐸","🐧","🦄","🐉","🦅","🦋","🐬","🌺",
+            ],
+        }
+
+        # Текущий выбранный эмодзи
+        _selected = [self.user_emoji]
+
+        from kivy.uix.scrollview import ScrollView as _SV
+        from kivy.uix.gridlayout import GridLayout as _GL
+
+        outer = MDBoxLayout(orientation="vertical", adaptive_height=True,
+                            spacing=S(10), padding=[S(4), S(4)])
+
+        # Поле имени
+        nf = MDTextField(hint_text="Имя", text=self.user_name,
+                         size_hint_y=None, height=S(52))
+        outer.add_widget(nf)
+
+        # Превью текущего эмодзи
+        preview_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                  height=S(48), spacing=S(12))
+        preview_card = MDCard(size_hint=(None,None), size=(S(48),S(48)),
+                               radius=[S(24)], elevation=0,
+                               md_bg_color=C["surf2"])
+        self._preview_emoji_lbl = EmojiLabel(
+            text=self.user_emoji, font_style="H5",
+            halign="center", valign="middle")
+        preview_card.add_widget(self._preview_emoji_lbl)
+        preview_row.add_widget(preview_card)
+        _hint = MDLabel(text="Выберите эмодзи ниже",
+                        font_style="Caption", theme_text_color="Secondary",
+                        size_hint_y=None, height=S(48),
+                        halign="left", valign="middle")
+        _hint.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        preview_row.add_widget(_hint)
+        outer.add_widget(preview_row)
+
+        # Вкладки категорий + сетка эмодзи
+        tab_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                               height=S(36), spacing=S(6))
+        outer.add_widget(tab_row)
+
+        grid_sv = _SV(size_hint_y=None, height=S(180), do_scroll_x=False)
+        grid = _GL(cols=8, spacing=S(4), padding=S(4), size_hint_y=None)
+        grid.bind(minimum_height=grid.setter("height"))
+        grid_sv.add_widget(grid)
+        outer.add_widget(grid_sv)
+
+        _tab_btns = []
+
+        def _fill_grid(group_name):
+            grid.clear_widgets()
+            for em in EMOJI_GROUPS[group_name]:
+                em_card = MDCard(size_hint=(None,None), size=(S(38),S(38)),
+                                  radius=[S(8)], elevation=0,
+                                  md_bg_color=C["surf2"] if em != _selected[0] else C["accent"])
+                em_lbl = EmojiLabel(text=em, font_style="Body1",
+                                    halign="center", valign="middle")
+                em_card.add_widget(em_lbl)
+
+                def _pick(w, touch, e=em):
+                    if not w.collide_point(*touch.pos): return
+                    _selected[0] = e
+                    update_emoji_label(self._preview_emoji_lbl, e)
+                    # обновляем подсветку
+                    _fill_grid(_current_group[0])
+
+                em_card.bind(on_touch_up=_pick)
+                grid.add_widget(em_card)
+
+        _current_group = [list(EMOJI_GROUPS.keys())[0]]
+
+        def _make_tab(gname):
+            short = gname.split()[0]  # только эмодзи из названия
+            btn = MDCard(size_hint=(None,None), size=(S(36),S(36)),
+                          radius=[S(8)], elevation=0,
+                          md_bg_color=C["accent"] if gname==_current_group[0] else C["surf2"])
+            lbl = EmojiLabel(text=short, font_style="Body2",
+                              halign="center", valign="middle")
+            btn.add_widget(lbl)
+
+            def _on_tab(w, touch, g=gname):
+                if not w.collide_point(*touch.pos): return
+                _current_group[0] = g
+                for b in _tab_btns:
+                    b.md_bg_color = C["surf2"]
+                w.md_bg_color = C["accent"]
+                _fill_grid(g)
+
+            btn.bind(on_touch_up=_on_tab)
+            return btn
+
+        for gname in EMOJI_GROUPS:
+            tb2 = _make_tab(gname)
+            _tab_btns.append(tb2)
+            tab_row.add_widget(tb2)
+
+        _fill_grid(_current_group[0])
+
+        def _do_save(*_):
+            self.user_emoji = _selected[0]
+            self._save_profile(nf.text, dlg)
+            # обновляем шапку сразу
+            if hasattr(self,"_tb_name"):
+                update_emoji_label(self._tb_name,
+                                   f"{self.user_name} {self.user_emoji}")
+            if hasattr(self,"_s_emoji_lbl"):
+                update_emoji_label(self._s_emoji_lbl, self.user_emoji)
+
+        dlg = MDDialog(title="Профиль", type="custom", content_cls=outer,
+                       buttons=[
+                           MDFlatButton(text="Отмена",
+                                        on_release=lambda *_: dlg.dismiss()),
+                           MDRaisedButton(text="Сохранить",
+                                          md_bg_color=C["accent"],
+                                          on_release=_do_save)])
         dlg.open()
 
     def _save_profile(self, name, dlg):
         if name.strip():
             self.user_name=name.strip()
             if hasattr(self,"_tb_name"):
-                new_text = f"{self.user_name} \U0001f495" if self._is_fem() else "СЕГОДНЯ"
+                new_text = f"{self.user_name} {self.user_emoji}"
                 update_emoji_label(self._tb_name, new_text)
             if hasattr(self,"_s_name"): self._s_name.text=self.user_name
             self._save_config()
@@ -4119,7 +4295,7 @@ class DailyTodoApp(MDApp):
                      "_prog_bg","_day_task_lbl","_day_task_sub","_day_pct_lbl",
                      "_ring_pct_lbl","_bars_box","_s_streak","_s_total",
                      "_motiv_lbl","_motiv_sub","_mood_btns","_sd_lbl","_sf_lbl",
-                     "_sp_badge","_s_name","_g_fem","_g_mal","_exp_lbl",
+                     "_sp_badge","_s_name","_s_emoji_lbl","_g_fem","_g_mal","_exp_lbl",
                      "_cats_box","_cal_month_lbl","_sp_btns",
                      "_goal_pct_lbl","_goal_prog","_draw_goal",
                      "_tasks_header","_nav_btns",
@@ -4167,7 +4343,8 @@ class DailyTodoApp(MDApp):
 
     def _load_config(self):
         if self.cfg_store.exists("profile"):
-            self.user_name=self.cfg_store.get("profile").get("name","")
+            self.user_name  = self.cfg_store.get("profile").get("name","")
+            self.user_emoji = self.cfg_store.get("profile").get("emoji","😊")
         if self.cfg_store.exists("theme"):
             tn=self.cfg_store.get("theme").get("name","Роза")
             if tn in THEMES: self.theme_name=tn; C.update(THEMES[tn])
@@ -4178,7 +4355,7 @@ class DailyTodoApp(MDApp):
             self.weekly_goal=self.cfg_store.get("weekly_goal").get("value",80)
 
     def _save_config(self):
-        self.cfg_store.put("profile",    name=self.user_name)
+        self.cfg_store.put("profile",    name=self.user_name, emoji=self.user_emoji)
         self.cfg_store.put("theme",      name=self.theme_name)
         self.cfg_store.put("categories", list=self.categories)
         self.cfg_store.put("weekly_goal",value=self.weekly_goal)
