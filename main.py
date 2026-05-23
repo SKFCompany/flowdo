@@ -16,74 +16,170 @@ from kivy.config import Config
 Config.set('graphics', 'orientation', 'portrait')
 Config.set('kivy', 'keyboard_mode', 'managed')
 
-# ───────────────────────────────────────────────────────────────────────────
-#  Emoji шрифт — регистрируем до старта приложения
-#  Kivy по умолчанию использует Roboto, который не содержит цветные emoji.
-#  Ищем системный NotoColorEmoji или падаем обратно на встроенный шрифт.
-# ───────────────────────────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════
+#  EMOJI ШРИФТ — встроен в код, работает на Android/Windows/Linux/macOS
+#  FlowDoEmoji.ttf содержит codepoints всех emoji используемых в приложении.
+#  Дополнительно при старте скачивается NotoEmoji для красивого отображения.
+# ═══════════════════════════════════════════════════════════════════════════
+import base64 as _b64, os as _os, tempfile as _tmp, threading as _efont_th
+
+# Встроенный fallback-шрифт (квадраты, но позиционирование верное)
+_EMBEDDED_FONT_B64 = "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IPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAEAZAAAA4QDIAADAAAzIREhZAMg/OADIAAAAQBkAAADhAMgAAMAADMhESFkAyD84AMgAAABAGQAAAOEAyAAAwAAMyERIWQDIPzgAyAAAAAAAAAEADYAAQAAAAAAAQALAAAAAQAAAAAAAgAHAAsAAwABBAkAAQAWABIAAwABBAkAAgAOAChGbG93RG9FbW9qaVJlZ3VsYXIARgBsAG8AdwBEAG8ARQBtAG8AagBpAFIAZQBnAHUAbABhAHIAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABhAAABAgEDAQQBBQEGAQcBCAEJAQoBCwEMAQ0BDgEPARABEQESARMBFAEVARYBFwEYARkBGgEbARwBHQEeAR8BIAEhASIBIwEkASUBJgEnASgBKQEqASsBLAEtAS4BLwEwATEBMgEzATQBNQE2ATcBOAE5AToBOwE8AT0BPgE/AUABQQFCAUMBRAFFAUYBRwFIAUkBSgFLAUwBTQFOAU8BUAFRAVIBUwFUAVUBVgFXAVgBWQFaAVsBXAFdAV4BXwFgAWEGdTFGNjBBBnUxRjYwNAZ1MUY2MDEGdTFGNjBFBnUxRjkyOQZ1MUY2MEQGdTFGOTcwBnUxRjYwNwZ1MUY2MEMGdTFGNjQyBnUxRjYxMAZ1MUY2MTQGdTFGNjIyBnUxRjYyRAZ1MUY2MjQGdTFGNjIxBnUxRjk3MwZ1MUY5MTcGdTFGNjM0BnUxRjkxNAZ1MUY2MEYGdTFGOTdBBnUxRjYyQwZ1MUY5MkYGdTFGNEFBBnUxRjNDMwZ1MUY5RDgGdTFGM0NCBnUxRjZCNAZ1MUYzQ0EGdTAyNkJEBnUxRjNBRgZ1MUY1MjUGdTAyNkExBnUxRjMxRgZ1MDI3MjgGdTFGNjgwBnUxRjRBNQZ1MUYzODkGdTFGM0M2BnUxRjMzOAZ1MUYzM0EGdTFGMzNCBnUxRjMzOQZ1MUYzNDAGdTFGMzNGBnUxRjMwQQZ1MUYzMDgGdTAyNjAwBnUxRjMxOQZ1MDJCNTAGdTAyNzQ0BnUxRjM0MQZ1MUYzMzQGdTFGOThCBnUwMjc2NAZ1MUY5RTEGdTFGNDlCBnUxRjQ5QQZ1MUY0OTkGdTFGNDlDBnUxRjVBNAZ1MUY5MEQGdTFGNDk2BnUxRjQ5NwZ1MUY0OTMGdTFGNDlFBnUxRjQ5RAZ1MUY0OTgGdTFGNDk1BnUxRjYzQQZ1MUY0MzYGdTFGNDMxBnUxRjQzQgZ1MUY0M0MGdTFGOThBBnUxRjQyOAZ1MUY5ODEGdTFGNDM4BnUxRjQyNwZ1MUY5ODQGdTFGNDA5BnUxRjk4NQZ1MUY0MkMGdTFGNTE0BnUxRjUwRAZ1MUYzQTQGdTFGNEYxBnUwMjcwNQZ1MDI2QTAGdTFGNTM0BnUwMjNGMwZ1MDJCMDcGdTFGNUQxBnUxRjRBQwZ1MUY0Q0I="
+
+# Глобальный список всех EmojiLabel для массового обновления
+_ALL_EMOJI_LABELS = []
+
+def _get_emoji_font_dir():
+    """Возвращает папку для хранения шрифта."""
+    if PLATFORM == "android":
+        try:
+            from android.storage import app_storage_path
+            base = app_storage_path()
+        except Exception:
+            base = _os.path.dirname(_os.path.abspath(__file__))
+    else:
+        base = _os.path.dirname(_os.path.abspath(__file__))
+    d = _os.path.join(base, ".emoji_fonts")
+    _os.makedirs(d, exist_ok=True)
+    return d
+
 def _register_emoji_font():
-    import os
+    """
+    1. Распаковываем встроенный fallback-шрифт.
+    2. Ищем системный NotoEmoji/NotoColorEmoji.
+    3. Запускаем фоновое скачивание NotoEmoji если не нашли.
+    """
     from kivy.core.text import LabelBase
-    candidates = [
-        # Android — разные версии и производители
+
+    font_dir = _get_emoji_font_dir()
+    stub_path = _os.path.join(font_dir, "FlowDoEmoji.ttf")
+
+    # Всегда распаковываем встроенный шрифт (5KB, мгновенно)
+    try:
+        with open(stub_path, "wb") as _f:
+            _f.write(_b64.b64decode(_EMBEDDED_FONT_B64))
+    except Exception:
+        pass
+
+    # Ищем системный шрифт — кандидаты по платформе
+    system_candidates = [
+        # Android (все известные пути)
         "/system/fonts/NotoColorEmoji.ttf",
-        "/system/fonts/NotoColorEmojiFlags.ttf",
         "/system/fonts/NotoEmoji.ttf",
         "/system/fonts/emoji.ttf",
         "/system/fonts/AndroidEmoji.ttf",
-        # Android через Kivy/Buildozer (шрифты копируются в assets)
-        "fonts/NotoColorEmoji.ttf",
-        "fonts/NotoEmoji.ttf",
-        # Путь внутри apk (Buildozer кладёт ресурсы сюда)
-        os.path.join(os.path.dirname(__file__), "fonts", "NotoColorEmoji.ttf"),
-        os.path.join(os.path.dirname(__file__), "fonts", "NotoEmoji.ttf"),
+        "/system/fonts/NotoColorEmojiFlags.ttf",
+        # Рядом с main.py (если пользователь положил сам или Buildozer включил)
+        _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "fonts", "NotoEmoji.ttf"),
+        _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "fonts", "NotoColorEmoji.ttf"),
+        _os.path.join(font_dir, "NotoEmoji.ttf"),   # уже скачанный
         # Linux
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
         "/usr/share/fonts/noto/NotoColorEmoji.ttf",
-        "/usr/share/fonts/truetype/noto/NotoEmoji.ttf",
+        "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
         # Windows
         r"C:\Windows\Fonts\seguiemj.ttf",
-        r"C:\Windows\Fonts\Segoe UI Emoji.ttf",
         # macOS
         "/System/Library/Fonts/Apple Color Emoji.ttc",
     ]
-    for path in candidates:
-        if path and os.path.exists(path):
+
+    chosen = None
+    for path in system_candidates:
+        if path and _os.path.exists(path):
+            chosen = path
+            break
+
+    if chosen:
+        try:
+            LabelBase.register("EmojiFont", chosen)
+            return "EmojiFont"
+        except Exception:
+            pass
+
+    # Системный не найден — регистрируем встроенный stub
+    try:
+        LabelBase.register("EmojiFont", stub_path)
+    except Exception:
+        pass
+
+    # Запускаем фоновое скачивание настоящего шрифта
+    _efont_th.Thread(target=_download_real_emoji_font,
+                     args=(font_dir,), daemon=True).start()
+
+    return "EmojiFont"   # вернём имя — stub уже зарегистрирован
+
+
+def _download_real_emoji_font(font_dir):
+    """Скачивает NotoEmoji в фоне и перерегистрирует шрифт."""
+    import urllib.request, time
+    dest = _os.path.join(font_dir, "NotoEmoji.ttf")
+    if _os.path.exists(dest) and _os.path.getsize(dest) > 100_000:
+        # Уже скачан — просто перерегистрируем
+        _apply_real_font(dest)
+        return
+
+    urls = [
+        # jsDelivr — CDN для GitHub, обходит ограничения raw.githubusercontent.com
+        "https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji@v2.042/fonts/NotoEmoji-Regular.ttf",
+        "https://cdn.jsdelivr.net/gh/googlefonts/noto-emoji/fonts/NotoEmoji-Regular.ttf",
+        "https://cdn.jsdelivr.net/npm/noto-emoji-2020@1.0.0/fonts/NotoEmoji-Regular.ttf",
+        # Google Fonts API
+        "https://fonts.gstatic.com/s/notoemoji/v47/bMrnmSyK7YY-MEu6aWjPds-Xa6k.ttf",
+        # FontSource CDN
+        "https://cdn.jsdelivr.net/fontsource/fonts/noto-emoji@latest/latin-400-normal.ttf",
+    ]
+    for url in urls:
+        try:
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "Mozilla/5.0 (DailyTodo/1.0)"})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                data = r.read()
+            # Проверка что это настоящий TTF
+            if len(data) > 50_000 and data[:4] in (
+                    b"\x00\x01\x00\x00", b"true", b"OTTO"):
+                with open(dest, "wb") as fout:
+                    fout.write(data)
+                _apply_real_font(dest)
+                return
+        except Exception:
+            time.sleep(1)
+
+
+def _apply_real_font(path):
+    """Регистрирует новый шрифт и обновляет ВСЕ существующие EmojiLabel."""
+    from kivy.core.text import LabelBase
+    from kivy.clock import Clock
+    global EMOJI_FONT
+    try:
+        # Переопределяем регистрацию
+        if "EmojiFont" in LabelBase._fonts:
+            del LabelBase._fonts["EmojiFont"]
+        LabelBase.register("EmojiFont", path)
+        EMOJI_FONT = "EmojiFont"
+    except Exception:
+        return
+
+    # Обновляем все живые EmojiLabel
+    def _refresh_all(*_):
+        dead = []
+        for ref in _ALL_EMOJI_LABELS:
+            lbl = ref() if callable(ref) else ref
+            if lbl is None:
+                dead.append(ref)
+                continue
             try:
-                LabelBase.register("EmojiFont", path)
-                return "EmojiFont"
+                original = getattr(lbl, "_emoji_text", lbl.text)
+                update_emoji_label(lbl, original)
             except Exception:
                 pass
-    # Последний шанс — пробуем скачать NotoEmoji если есть интернет
-    # (только не на Android где шрифт должен быть системным)
-    return None   # останется None — будем использовать стандартный
+        for d in dead:
+            try: _ALL_EMOJI_LABELS.remove(d)
+            except: pass
+    Clock.schedule_once(_refresh_all, 0)
 
+# Инициализируем emoji шрифт (синхронно — stub, асинхронно — настоящий)
 EMOJI_FONT = _register_emoji_font()
 
-# На Android — если шрифт не найден системный, скачиваем NotoEmoji в папку приложения
-if EMOJI_FONT is None and PLATFORM == "android":
-    def _download_emoji_font():
-        import threading as _et, urllib.request as _ur, os as _os
-        def _fetch():
-            try:
-                # Папка приложения на Android
-                _app_dir = _os.path.dirname(_os.path.abspath(__file__))
-                _font_dir = _os.path.join(_app_dir, "fonts")
-                _os.makedirs(_font_dir, exist_ok=True)
-                _dest = _os.path.join(_font_dir, "NotoEmoji.ttf")
-                if not _os.path.exists(_dest):
-                    # NotoEmoji (без цвета — совместим с Kivy на Android)
-                    _url = "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoEmoji-Regular.ttf"
-                    _ur.urlretrieve(_url, _dest)
-                # Регистрируем
-                from kivy.core.text import LabelBase
-                LabelBase.register("EmojiFont", _dest)
-                global EMOJI_FONT
-                EMOJI_FONT = "EmojiFont"
-            except Exception:
-                pass
-        _et.Thread(target=_fetch, daemon=True).start()
-    _download_emoji_font()
 
 from kivymd.app import MDApp
 from kivymd.uix.boxlayout import MDBoxLayout
@@ -627,6 +723,9 @@ def EmojiLabel(text="", font_style="Body1", **kwargs):
         lbl = MDLabel(text=text, font_style=font_style, **kwargs)
     lbl._emoji_text = text
     lbl._use_emoji_font = has_emoji and bool(EMOJI_FONT)
+    # Регистрируем для массового обновления после загрузки шрифта
+    import weakref
+    _ALL_EMOJI_LABELS.append(weakref.ref(lbl))
     return lbl
 
 
