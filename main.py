@@ -177,8 +177,7 @@ def _apply_real_font(path):
             except: pass
     Clock.schedule_once(_refresh_all, 0)
 
-# Инициализируем emoji шрифт (синхронно — stub, асинхронно — настоящий)
-EMOJI_FONT = _register_emoji_font()
+# Инициализируем emoji шрифт ПОСЛЕ определения PLATFORM (см. ниже)
 
 
 from kivymd.app import MDApp
@@ -240,6 +239,9 @@ def _detect_platform():
     return "linux"
 
 PLATFORM = _detect_platform()
+
+# Инициализируем emoji шрифт (синхронно — stub, асинхронно — настоящий)
+EMOJI_FONT = _register_emoji_font()
 
 def _pip_install(*packages):
     """Тихая установка пакетов через pip. Возвращает True если успешно."""
