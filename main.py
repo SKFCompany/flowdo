@@ -439,11 +439,15 @@ CAT_ICONS = {
     "Прочее":"dots-horizontal-circle-outline",
 }
 CAT_EMOJI = {
-    "Работа":"\U0001f4bc","Дом":"\U0001f3e0",
-    "Личное":"\U0001f496","Покупки":"\U0001f6cd",
-    "Тренировки":"\U0001f4aa","Семья":"\U0001f46a",
-    "Учёба":"\U0001f4da","Финансы":"\U0001f4b0",
-    "Прочее":"\U0001f4cc",
+    "Работа":"\U0001f4bc",    # 💼 ✓
+    "Дом":"\U0001f3e0",       # 🏠 ✓
+    "Личное":"\u2764\ufe0f",  # ❤️ ✓
+    "Покупки":"\U0001f6cd\ufe0f", # 🛍️ ✓
+    "Тренировки":"\U0001f4aa",# 💪 ✓
+    "Семья":"\U0001f46a",     # 👨‍👩‍👧 ✓
+    "Учёба":"\U0001f4da",     # 📚 ✓
+    "Финансы":"\U0001f4b0",   # 💰 ✓
+    "Прочее":"\U0001f4cc",    # 📌 ✓
 }
 
 MOTIVATIONS_F = [
@@ -5807,8 +5811,11 @@ class TaskFormScreen(MDScreen):
         p_inn=MDBoxLayout(orientation="vertical", adaptive_height=True)
         date_disp=self._date_val+(f"  {self._time_val}" if self._time_val else "")
         r_dt,self._date_lbl=self._param_row(
-            "calendar-outline","Дата и время",date_disp or "Не выбрано",self._open_date_picker)
+            "calendar-outline","Дата",self._date_val or "Не выбрано",self._open_date_picker)
         p_inn.add_widget(r_dt); self._sep(p_inn)
+        r_tm,self._time_lbl=self._param_row(
+            "clock-outline","Время",self._time_val or "Не выбрано",self._open_time_picker)
+        p_inn.add_widget(r_tm); self._sep(p_inn)
         r_rem,self._remind_lbl=self._param_row(
             "bell-outline","Напоминание",self._remind_val or "Не выбрано",self._pick_reminder)
         p_inn.add_widget(r_rem); self._sep(p_inn)
@@ -5918,9 +5925,6 @@ class TaskFormScreen(MDScreen):
             self._add_sub_widget(sub.get("title",""), sub.get("done",False))
         s_inn.add_widget(self._sub_rows); sub_c.add_widget(s_inn); inn.add_widget(sub_c)
         inn.add_widget(Widget(size_hint_y=None, height=S(16)))
-        save_btn=MDRaisedButton(text="Сохранить задачу", size_hint_y=None, height=S(52),
-                                 elevation=0, md_bg_color=C["accent"])
-        save_btn.bind(on_release=lambda *_: self._save()); inn.add_widget(save_btn)
         sv.add_widget(inn); root.add_widget(sv)
         # Нижний footer — всегда виден, кнопки работают через on_touch_up
         footer=MDBoxLayout(orientation="horizontal", size_hint_y=None,
@@ -6049,6 +6053,81 @@ class TaskFormScreen(MDScreen):
         self._date_val=d.strftime("%d.%m.%Y")
         self._date_lbl.text=self._date_val; dlg.dismiss()
 
+    def _open_time_picker(self):
+        """Диалог выбора времени — кнопки +/- без ScrollView."""
+        from kivy.uix.modalview import ModalView
+        try:
+            cur_h = int(self._time_val.split(":")[0])
+            cur_m = int(self._time_val.split(":")[1])
+        except Exception:
+            cur_h = 9; cur_m = 0
+
+        # Изменяемые значения (не через sel[idx] — ловушка замыкания)
+        h_val = [cur_h]
+        m_val = [cur_m]
+
+        mv = ModalView(background_color=(0,0,0,0.5), auto_dismiss=False,
+                       size_hint=(0.82, None))
+        card = MDCard(orientation="vertical", size_hint_y=None, height=S(260),
+                      radius=[S(16)], elevation=6, md_bg_color=C["surf"],
+                      padding=[S(16), S(12)])
+
+        title = MDLabel(text="Выберите время", font_style="H6", bold=True,
+                        theme_text_color="Primary", halign="center",
+                        size_hint_y=None, height=S(36))
+        title.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(title)
+
+        row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                          height=S(150), spacing=S(12), padding=[S(4),S(4)])
+
+        def _make_col(get_fn, set_fn, max_val):
+            col = MDBoxLayout(orientation="vertical", spacing=S(6))
+            up = MDRaisedButton(text="▲", size_hint_y=None, height=S(40),
+                                 md_bg_color=C["surf2"], elevation=0)
+            lbl = MDLabel(text=f"{get_fn():02d}", font_style="H4", bold=True,
+                           halign="center", valign="middle",
+                           theme_text_color="Primary",
+                           size_hint_y=None, height=S(48))
+            lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            dn = MDRaisedButton(text="▼", size_hint_y=None, height=S(40),
+                                 md_bg_color=C["surf2"], elevation=0)
+            def _up(*_):
+                set_fn((get_fn()+1) % max_val)
+                lbl.text = f"{get_fn():02d}"
+            def _dn(*_):
+                set_fn((get_fn()-1) % max_val)
+                lbl.text = f"{get_fn():02d}"
+            up.bind(on_release=_up)
+            dn.bind(on_release=_dn)
+            col.add_widget(up); col.add_widget(lbl); col.add_widget(dn)
+            return col
+
+        h_col = _make_col(lambda: h_val[0], lambda v: h_val.__setitem__(0,v), 24)
+        sep = MDLabel(text=":", font_style="H4", bold=True,
+                      theme_text_color="Primary", halign="center",
+                      size_hint_x=None, width=S(20),
+                      size_hint_y=None, height=S(48))
+        sep.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        m_col = _make_col(lambda: m_val[0], lambda v: m_val.__setitem__(0,v), 60)
+        row.add_widget(h_col); row.add_widget(sep); row.add_widget(m_col)
+        card.add_widget(row)
+
+        btn_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                              height=S(44), spacing=S(8))
+        def _clear(*_):
+            self._time_val = ""
+            self._time_lbl.text = "Не выбрано"; mv.dismiss()
+        def _apply(*_):
+            self._time_val = f"{h_val[0]:02d}:{m_val[0]:02d}"
+            self._time_lbl.text = self._time_val; mv.dismiss()
+        btn_row.add_widget(MDFlatButton(text="Очистить", on_release=_clear))
+        btn_row.add_widget(Widget())
+        btn_row.add_widget(MDRaisedButton(text="Выбрать",
+                            md_bg_color=C["accent"], on_release=_apply))
+        card.add_widget(btn_row)
+        mv.add_widget(card); mv.open()
+
     def _show_picker(self, title, opts, cur, lbl, setter):
         from kivy.uix.modalview import ModalView
         mv=ModalView(background_color=(0,0,0,0.5), auto_dismiss=True, size_hint=(0.88,None))
@@ -6063,8 +6142,8 @@ class TaskFormScreen(MDScreen):
                                 halign="left", valign="middle")
             opt_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             row.add_widget(opt_lbl)
-            def _sel(w,t,o=opt):
-                if row.collide_point(*t.pos):
+            def _sel(w,t,o=opt,r=row):
+                if r.collide_point(*t.pos):
                     setter(o); lbl.text=o; mv.dismiss(); return True
             row.bind(on_touch_up=_sel); card.add_widget(row)
         mv.add_widget(card); mv.open()
@@ -6118,8 +6197,10 @@ class TaskFormScreen(MDScreen):
         if self._on_cancel: self._on_cancel()
 
     def _save(self):
+        if getattr(self, "_save_locked", False): return
+        self._save_locked = True
         title=self.tf_title.text.strip()
-        if not title: self.tf_title.hint_text="Введите название!"; return
+        if not title: self.tf_title.hint_text="Введите название!"; self._save_locked=False; return
         data={"title":title,"comment":getattr(self,"_note_text","").strip(),
               "category":self._sel_cat,"priority":self._sel_prio,
               "date":self._date_val,"time":self._time_val,
@@ -6578,7 +6659,11 @@ class DailyTodoApp(MDApp):
         def _ft(w,t):
             # Реагируем ТОЛЬКО если кнопка видима (вкладка tasks)
             if w.opacity < 0.5: return False
-            if self._fab.collide_point(*t.pos): self.open_task_form(); return True
+            if self._fab.collide_point(*t.pos):
+                if getattr(self, "_fab_locked", False): return True
+                self._fab_locked = True
+                Clock.schedule_once(lambda *_: setattr(self, "_fab_locked", False), 0.8)
+                self.open_task_form(); return True
         self._fab.bind(on_touch_up=_ft); root.add_widget(self._fab)
 
         # Кнопка голосового помощника — левый нижний угол
@@ -6867,13 +6952,6 @@ class DailyTodoApp(MDApp):
         self._cat_btns = {}
         for cat in self.categories:
             b = self._mk_cat_btn(cat); self._cat_btns[cat]=b; self.cat_bar.add_widget(b)
-        gear = MDRaisedButton(text="", size_hint_x=None, width=S(36),
-                              size_hint_y=None, height=S(32), elevation=0,
-                              md_bg_color=C["surf2"])
-        gear.add_widget(MDIconButton(icon="cog-outline", size_hint=(1,1),
-                                     theme_text_color="Custom", text_color=C["text2"]))
-        gear.bind(on_release=self._manage_cats)
-        self.cat_bar.add_widget(gear)
         cat_sv.add_widget(self.cat_bar)
         self._scroll_header.add_widget(cat_sv)
         inn.add_widget(self._scroll_header)
@@ -7065,16 +7143,17 @@ class DailyTodoApp(MDApp):
         rad=S(16) if is_fem else S(8)
         bg=C["accent"] if sel else C["surf2"]
         tc=(1,1,1,1) if sel else C["text"]
-        # Карточка категории
         w=max(S(80), S(7)*len(cat)+S(52))
         card=MDCard(size_hint_x=None, width=w, size_hint_y=None, height=S(36),
                     radius=[rad], elevation=0, md_bg_color=bg)
         inner=MDBoxLayout(orientation="horizontal", spacing=S(4),
                           padding=[S(8),0], size_hint=(1,1))
         if em:
-            em_img = EmojiLabel(text=em, height=S(22), size_hint_y=None,
-                                size_hint_x=None, width=S(22))
-            inner.add_widget(em_img)
+            em_path=get_emoji_png(em.strip())
+            if em_path:
+                em_img=KivyImage(source=em_path, size_hint=(None,None),
+                                  size=(S(20),S(20)), allow_stretch=True, keep_ratio=True)
+                inner.add_widget(em_img)
         txt_lbl=MDLabel(text=cat, font_style="Caption", bold=sel,
                         halign="center", valign="middle",
                         theme_text_color="Custom", text_color=tc,
@@ -7438,14 +7517,21 @@ class DailyTodoApp(MDApp):
                              radius=[S(14)] if is_fem else [S(10)])
             box.bind(pos=lambda w,v: setattr(w._bg,'pos',v),
                      size=lambda w,v: setattr(w._bg,'size',v))
-            # Emoji иконка — EmojiLabel возвращает Image или MDLabel
-            # НЕ биндим text_size на Image
             ico_row = MDBoxLayout(orientation="horizontal",
                                   size_hint_y=None, height=S(32))
-            ico = EmojiLabel(text=ico_txt, height=S(30), size_hint_y=None,
-                             size_hint_x=None, width=S(32))
+            # Напрямую через get_emoji_png чтобы гарантировать отображение
+            em_path = get_emoji_png(ico_txt.strip())
+            if em_path:
+                ico = KivyImage(source=em_path, size_hint=(None,None),
+                                size=(S(28),S(28)), allow_stretch=True, keep_ratio=True)
+            else:
+                ico = MDLabel(text=ico_txt, font_style="H6", halign="center",
+                              valign="middle", size_hint_x=None, width=S(28),
+                              size_hint_y=None, height=S(28),
+                              theme_text_color="Primary")
+                ico.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             ico_row.add_widget(ico)
-            ico_row.add_widget(Widget())  # spacer
+            ico_row.add_widget(Widget())
             box.add_widget(ico_row)
             t_l=MDLabel(text=title, font_style="Caption",
                         theme_text_color="Secondary", size_hint_y=None, height=S(18),
@@ -7459,7 +7545,7 @@ class DailyTodoApp(MDApp):
             setattr(self, attr, val_l); box.add_widget(val_l)
             return box
         mini_r.add_widget(_mini("\U0001f525","Серия","_s_streak","_s_streak"))
-        mini_r.add_widget(_mini("\u2705","Всего задач","_s_total","_s_total"))
+        mini_r.add_widget(_mini("\U0001f4cc","Всего задач","_s_total","_s_total"))
         inn.add_widget(mini_r)
 
         # ── Цель на неделю ───────────────────────────────────────────────────
@@ -7690,14 +7776,21 @@ class DailyTodoApp(MDApp):
         pr=MDBoxLayout(orientation="horizontal", spacing=S(12))
         av=MDCard(size_hint=(None,None), size=(S(56),S(56)), radius=[S(28)],
                   elevation=0, md_bg_color=C["accent"])
-        # Центрируем emoji в круге через FloatLayout
-        av_inner = FloatLayout(size_hint=(1,1))
-        em_sz = S(40)
-        self._s_emoji_lbl = EmojiLabel(
-            text=self.user_emoji,
-            height=em_sz, size_hint_y=None,
-            pos_hint={"center_x": 0.5, "center_y": 0.5},
-            size_hint_x=None, width=em_sz)
+        av_inner=FloatLayout(size_hint=(1,1))
+        em_sz=S(40)
+        _em_path=get_emoji_png(self.user_emoji.strip()) if self.user_emoji else None
+        if _em_path:
+            self._s_emoji_lbl=KivyImage(source=_em_path, size_hint=(None,None),
+                                         size=(em_sz,em_sz), allow_stretch=True,
+                                         keep_ratio=True,
+                                         pos_hint={"center_x":0.5,"center_y":0.5})
+        else:
+            self._s_emoji_lbl=MDLabel(text=self.user_emoji or "😊", font_style="H5",
+                                       halign="center", valign="middle",
+                                       theme_text_color="Custom", text_color=(1,1,1,1),
+                                       size_hint=(None,None), size=(em_sz,em_sz),
+                                       pos_hint={"center_x":0.5,"center_y":0.5})
+            self._s_emoji_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         av_inner.add_widget(self._s_emoji_lbl)
         av.add_widget(av_inner)
         pr.add_widget(av)
@@ -7984,23 +8077,110 @@ class DailyTodoApp(MDApp):
         self._cats_box.clear_widgets()
         for cat in self.categories:
             cnt=sum(1 for t in self.tasks.values() if t.get("category")==cat)
+            em=CAT_EMOJI.get(cat,"")
             ico=CAT_ICONS.get(cat,"dots-horizontal-circle-outline")
             row=MDBoxLayout(orientation="horizontal", size_hint_y=None,
                             height=S(52), padding=[S(8),0], spacing=S(8))
-            row.add_widget(MDIconButton(icon=ico, size_hint_x=None, width=S(34),
-                                         theme_text_color="Custom", text_color=C["accent"]))
-            _lbl_tmp=MDLabel(text=cat, font_style="Body1", theme_text_color="Primary",
-                          halign="left", valign="middle")
-            row.add_widget(_lbl_tmp)
-            _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-            _lbl_tmp=MDLabel(text=str(cnt), font_style="Body2",
-                                   theme_text_color="Secondary",
-                                   halign="right", size_hint_x=None, width=S(36))
-            row.add_widget(_lbl_tmp)
-            _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
+            em_path=get_emoji_png(em.strip()) if em else None
+            if em_path:
+                em_w=KivyImage(source=em_path, size_hint=(None,None),
+                                size=(S(28),S(28)), allow_stretch=True, keep_ratio=True)
+                row.add_widget(em_w)
+            else:
+                row.add_widget(MDIconButton(icon=ico, size_hint_x=None, width=S(34),
+                                             theme_text_color="Custom", text_color=C["accent"]))
+            name_lbl=MDLabel(text=cat, font_style="Body1", theme_text_color="Primary",
+                             halign="left", valign="middle")
+            name_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            row.add_widget(name_lbl)
+            cnt_lbl=MDLabel(text=str(cnt), font_style="Body2",
+                            theme_text_color="Secondary",
+                            halign="right", size_hint_x=None, width=S(36))
+            cnt_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            row.add_widget(cnt_lbl)
             row.add_widget(MDIconButton(icon="chevron-right", size_hint_x=None, width=S(26),
                                          theme_text_color="Custom", text_color=C["text2"]))
+            def _row_tap(w,t,c=cat):
+                if w.collide_point(*t.pos): self._edit_cat_emoji(c); return True
+            row.bind(on_touch_up=_row_tap)
             self._cats_box.add_widget(row)
+
+    def _refresh_cat_bar(self):
+        """Перестраивает cat_bar после изменения эмодзи категорий."""
+        if hasattr(self,"cat_bar"):
+            self.cat_bar.clear_widgets(); self._cat_btns={}
+            for c in self.categories:
+                b=self._mk_cat_btn(c); self._cat_btns[c]=b; self.cat_bar.add_widget(b)
+            self._update_cat_colors()
+
+    def _edit_cat_emoji(self, cat):
+        """Диалог выбора эмодзи для существующей категории."""
+        CAT_EMOJI_OPTS = [
+            "🔥","⭐","🎯","💡","🏠","💼","💪","🎵","📚","🌿",
+            "⚡","🌟","🚀","🎉","🏆","🌈","🦋","🔑","🎁","🧘",
+            "🚴","🏊","⚽","🔖","📌","❤️","💰","✨","💥","🏋️",
+            "📅","🌙","🌊","🌸","🌺","💛","💙","💜","🐶","🐱",
+        ]
+        cur_em=CAT_EMOJI.get(cat,"")
+        sel_emoji=[cur_em]
+        from kivy.uix.modalview import ModalView
+        from kivy.uix.gridlayout import GridLayout as GL
+        mv=ModalView(background_color=(0,0,0,0.5), auto_dismiss=False, size_hint=(0.9,None))
+        card=MDCard(orientation="vertical", size_hint_y=None, height=S(360),
+                    radius=[S(16)], elevation=6, md_bg_color=C["surf"],
+                    padding=[S(14),S(12)])
+        title_lbl=MDLabel(text=f"Эмодзи для «{cat}»", font_style="H6", bold=True,
+                           theme_text_color="Primary", halign="center",
+                           size_hint_y=None, height=S(36))
+        title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(title_lbl)
+        preview_lbl=MDLabel(text=f"Выбрано: {cur_em or 'нет'}", font_style="Body2",
+                             theme_text_color="Secondary", halign="left", valign="middle",
+                             size_hint_y=None, height=S(28))
+        preview_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(preview_lbl)
+        grid=GL(cols=8, spacing=S(6), size_hint_y=None, padding=[0,S(4)])
+        grid.bind(minimum_height=grid.setter("height"))
+        em_cards=[]
+        def _pick(em):
+            sel_emoji[0]=em
+            preview_lbl.text=f"Выбрано: {em}"
+            for ec in em_cards:
+                ec.md_bg_color=C["accent"] if ec._em==em else C["surf2"]
+        for em in CAT_EMOJI_OPTS:
+            ec=MDCard(size_hint=(None,None), size=(S(36),S(36)),
+                      radius=[S(8)], elevation=0,
+                      md_bg_color=C["accent"] if em==cur_em else C["surf2"])
+            ec._em=em
+            em_path=get_emoji_png(em.strip())
+            if em_path:
+                img=KivyImage(source=em_path, size_hint=(1,1),
+                              allow_stretch=True, keep_ratio=True)
+                ec.add_widget(img)
+            else:
+                lbl=MDLabel(text=em, halign="center", valign="middle")
+                lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+                ec.add_widget(lbl)
+            ec.bind(on_release=lambda w,e=em: _pick(e))
+            em_cards.append(ec)
+            grid.add_widget(ec)
+        card.add_widget(grid)
+        btn_row=MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                            height=S(44), spacing=S(6))
+        def _cancel_em(*_): mv.dismiss()
+        def _clear_em(*_):
+            CAT_EMOJI.pop(cat,None)
+            self._rebuild_cats_list(); self._refresh_cat_bar(); mv.dismiss()
+        def _apply_em(*_):
+            if sel_emoji[0]: CAT_EMOJI[cat]=sel_emoji[0]
+            self._rebuild_cats_list(); self._refresh_cat_bar(); mv.dismiss()
+        btn_row.add_widget(MDFlatButton(text="Отмена", on_release=_cancel_em))
+        btn_row.add_widget(MDFlatButton(text="Убрать", on_release=_clear_em))
+        btn_row.add_widget(Widget())
+        btn_row.add_widget(MDRaisedButton(text="Сохранить",
+                            md_bg_color=C["accent"], on_release=_apply_em))
+        card.add_widget(btn_row)
+        mv.add_widget(card); mv.open()
 
     def _theme_card(self, tn):
         td=THEMES[tn]; sel=(tn==self.theme_name)
@@ -8054,20 +8234,60 @@ class DailyTodoApp(MDApp):
         self._apply_theme("Бронза" if g=="male" else "Роза")
 
     def _add_category(self):
+        from kivy.uix.gridlayout import GridLayout as GL
+        CAT_EMOJI_OPTS = [
+            "🔥","⭐","🎯","💡","🏠","💼","💪","🎵","📚","🌿",
+            "⚡","🌟","🚀","🎉","🏆","🌈","🦋","🔑","🎁","🧘",
+            "🚴","🏊","⚽","🔖","📌","❤️","💰","✨","💥","🏋️",
+            "📅","🌙","🌊","🌸","🌺","💛","💙","💜","🐶","🐱",
+        ]
+        sel_emoji=[""]
         box=MDBoxLayout(orientation="vertical", adaptive_height=True,
-                        spacing=S(8), padding=[S(4)])
+                        spacing=S(10), padding=[S(4)])
         nf=MDTextField(hint_text="Название категории", size_hint_y=None, height=S(52))
         box.add_widget(nf)
+        em_preview_lbl=MDLabel(text="Эмодзи: не выбран", font_style="Body2",
+                                theme_text_color="Secondary", halign="left",
+                                valign="middle", size_hint_y=None, height=S(28))
+        em_preview_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        box.add_widget(em_preview_lbl)
+        grid=GL(cols=6, spacing=S(6), size_hint_y=None, padding=[0,S(2)])
+        grid.bind(minimum_height=grid.setter("height"))
+        em_cards=[]
+        def _pick_em(em):
+            sel_emoji[0]=em
+            em_preview_lbl.text=f"Эмодзи: {em}"
+            for ec in em_cards:
+                ec.md_bg_color=C["accent"] if ec._em==em else C["surf2"]
+        for em in CAT_EMOJI_OPTS:
+            ec=MDCard(size_hint=(None,None), size=(S(42),S(42)),
+                      radius=[S(8)], elevation=0, md_bg_color=C["surf2"])
+            ec._em=em
+            em_path=get_emoji_png(em.strip())
+            if em_path:
+                img=KivyImage(source=em_path, size_hint=(1,1),
+                              allow_stretch=True, keep_ratio=True)
+                ec.add_widget(img)
+            else:
+                lbl=MDLabel(text=em, halign="center", valign="middle")
+                lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+                ec.add_widget(lbl)
+            ec.bind(on_release=lambda w,e=em: _pick_em(e))
+            em_cards.append(ec)
+            grid.add_widget(ec)
+        box.add_widget(grid)
         dlg=MDDialog(title="Новая категория", type="custom", content_cls=box,
                      buttons=[
                          MDFlatButton(text="Отмена", on_release=lambda *_: dlg.dismiss()),
                          MDRaisedButton(text="Добавить", md_bg_color=C["accent"],
-                                        on_release=lambda *_: self._do_add_cat(nf.text.strip(),dlg))])
+                                        on_release=lambda *_: self._do_add_cat(nf.text.strip(), dlg, sel_emoji[0]))])
         dlg.open()
 
-    def _do_add_cat(self, name, dlg):
+    def _do_add_cat(self, name, dlg, emoji=""):
         if name and name not in self.categories:
             self.categories.append(name); self._save_config()
+            if emoji:
+                CAT_EMOJI[name]=emoji
             self._rebuild_cats_list()
             if hasattr(self,"cat_bar"):
                 b=self._mk_cat_btn(name); self._cat_btns[name]=b
@@ -8198,12 +8418,18 @@ class DailyTodoApp(MDApp):
         def _do_save(*_):
             self.user_emoji = _selected[0]
             self._save_profile(nf.text, dlg)
-            # обновляем шапку сразу
             if hasattr(self,"_tb_name"):
                 update_emoji_label(self._tb_name,
                                    f"{self.user_name} {self.user_emoji}")
+            # Обновляем аватар в настройках
             if hasattr(self,"_s_emoji_lbl"):
-                update_emoji_label(self._s_emoji_lbl, self.user_emoji)
+                em_path=get_emoji_png(self.user_emoji.strip()) if self.user_emoji else None
+                if em_path and hasattr(self._s_emoji_lbl,"source"):
+                    self._s_emoji_lbl.source=em_path
+                elif not em_path and hasattr(self._s_emoji_lbl,"text"):
+                    self._s_emoji_lbl.text=self.user_emoji or "😊"
+                else:
+                    update_emoji_label(self._s_emoji_lbl, self.user_emoji)
 
         dlg = MDDialog(title="Профиль", type="custom", content_cls=outer,
                        buttons=[
@@ -8262,12 +8488,6 @@ class DailyTodoApp(MDApp):
             self.cat_bar.clear_widgets(); self._cat_btns={}
             for c in self.categories:
                 b=self._mk_cat_btn(c); self._cat_btns[c]=b; self.cat_bar.add_widget(b)
-            gear=MDRaisedButton(text="", size_hint_x=None, width=S(36),
-                                 size_hint_y=None, height=S(32), elevation=0,
-                                 md_bg_color=C["surf2"])
-            gear.add_widget(MDIconButton(icon="cog-outline", size_hint=(1,1),
-                                          theme_text_color="Custom", text_color=C["text2"]))
-            gear.bind(on_release=self._manage_cats); self.cat_bar.add_widget(gear)
             self._update_cat_colors()
         self.save_tasks(); self._rebuild_cats_list(); dlg.dismiss()
         self.refresh_task_list()
@@ -8324,7 +8544,7 @@ class DailyTodoApp(MDApp):
         done_today=sum(1 for t in self.tasks.values()
                        if t.get("done") and
                        t.get("date","")==date.today().strftime("%d.%m.%Y"))
-        mv=ModalView(background_color=(0,0,0,0.5), auto_dismiss=True, size_hint=(0.9,None))
+        mv=ModalView(background_color=(0,0,0,0.5), auto_dismiss=False, size_hint=(0.9,None))
         card=MDCard(orientation="vertical", size_hint_y=None,
                     height=S(280 if is_fem else 220),
                     radius=[S(24)], elevation=6, md_bg_color=C["surf"],
