@@ -5073,12 +5073,13 @@ class VoiceAssistant:
 }}
 
 Возможные действия и params:
-- "add_task": {{"title":"...", "date":"ДД.ММ.ГГГГ", "category":"...", "priority":"Высокий|Средний|Низкий", "comment":""}}
+- "add_task": {{"title":"...", "date":"ДД.ММ.ГГГГ", "time":"ЧЧ:ММ", "category":"...", "priority":"Высокий|Средний|Низкий", "comment":""}}
 - "done_task": {{"id":"...", "title_hint":"..."}}
 - "undone_task": {{"id":"...", "title_hint":"..."}}
 - "delete_task": {{"id":"...", "title_hint":"..."}}
 - "find_tasks": {{"query":"...", "filter":"all|done|undone"}}
 - "task_info": {{"id":"...", "title_hint":"..."}}
+- "open_task": {{"id":"...", "title_hint":"..."}}
 - "add_subtask": {{"task_id":"...", "task_hint":"...", "subtask_title":"..."}}
 - "open_tab": {{"tab":"tasks|calendar|stats|settings"}}
 - "change_theme": {{"theme":"Роза|Лаванда|Мята|Бронза|Океан|Бежевая|Ночь"}}
@@ -5140,17 +5141,17 @@ class VoiceAssistant:
             if title:
                 d = params.get("date", date.today().strftime("%d.%m.%Y"))
                 cat = params.get("category", app.cur_cat)
-                if cat not in app.categories:
-                    cat = app.cur_cat
+                if cat not in app.categories: cat = app.categories[0]
                 prio = params.get("priority","Средний")
                 tid = str(datetime.now().timestamp())
                 app.tasks[tid] = {
                     "id":tid,"title":title,"comment":params.get("comment",""),
                     "category":cat,"priority":prio,"date":d,
-                    "time":"","reminder":"","repeat":"Не повторять",
+                    "time":params.get("time",""),"reminder":"","repeat":"Не повторять",
                     "subtasks":[],"original_date":d,"done":False,"result":""
                 }
                 app.save_tasks(); app.refresh_task_list()
+                reply = reply or f"Задача «{title}» добавлена"
 
         elif action in ("done_task","undone_task"):
             task = self._resolve_task(params)
@@ -5192,6 +5193,14 @@ class VoiceAssistant:
                 reply = (f"Задача «{task['title']}» — {status}"
                          f", приоритет {task.get('priority','')}"
                          f", дата {task.get('date','')}{sub_info}")
+            else:
+                reply = "Задача не найдена"
+
+        elif action == "open_task":
+            task = self._resolve_task(params)
+            if task:
+                reply = reply or f"Открываю «{task['title']}»"
+                Clock.schedule_once(lambda *_, t=task: app.open_task_detail(t["id"]), 0.3)
             else:
                 reply = "Задача не найдена"
 
@@ -5550,18 +5559,91 @@ class TaskCard(MDCard):
             ti.add_widget(sub_lbl)
         row.add_widget(ti)
 
-        # подзадачи — прогресс-бар справа
+        # подзадачи — прогресс-бар + кнопка просмотра
         if self.subtasks:
             dn = sum(1 for s in self.subtasks if s.get("done"))
             tot = len(self.subtasks)
             pct_sub = dn/tot if tot else 0
             sub_col = MDBoxLayout(orientation="vertical", size_hint_x=None,
-                                   width=S(46), spacing=S(2))
-            _lbl_tmp=MDLabel(text=f"{dn}/{tot}", font_style="Caption",
-                                        halign="center", theme_text_color="Custom",
-                                        text_color=C["accent"])
-            sub_col.add_widget(_lbl_tmp)
-            _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
+                                   width=S(54), spacing=S(2))
+            cnt_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                  height=S(20), spacing=S(2))
+            cnt_lbl = MDLabel(text=f"{dn}/{tot}", font_style="Caption",
+                              halign="center", theme_text_color="Custom",
+                              text_color=C["accent"], size_hint_x=1)
+            cnt_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            cnt_row.add_widget(cnt_lbl)
+            # Кнопка просмотра подзадач
+            sub_btn = MDIconButton(icon="format-list-checks",
+                                   size_hint=(None,None), size=(S(22),S(20)),
+                                   theme_text_color="Custom", text_color=C["accent"])
+            def _show_subs(*_, subs=self.subtasks, app=self.app):
+                from kivy.uix.modalview import ModalView
+                mv = ModalView(background_color=(0,0,0,0.5), auto_dismiss=False,
+                               size_hint=(0.9, None))
+                card = MDCard(orientation="vertical", size_hint_y=None,
+                              radius=[S(14)], elevation=6,
+                              md_bg_color=C["surf"], padding=[S(14),S(12)])
+                card.bind(minimum_height=card.setter("height"))
+                # Заголовок
+                hdr = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                  height=S(36), spacing=S(6))
+                dn2 = sum(1 for s in subs if s.get("done"))
+                h_lbl = MDLabel(text=f"Подзадачи {dn2}/{len(subs)}",
+                                font_style="Subtitle2", bold=True,
+                                theme_text_color="Primary", halign="left", valign="middle")
+                h_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+                hdr.add_widget(h_lbl)
+                # Кнопка озвучить всё
+                spk = MDIconButton(icon="volume-high", size_hint_x=None, width=S(36),
+                                   theme_text_color="Custom", text_color=C["accent"])
+                def _speak(*_):
+                    txt = ". ".join(s.get("title","") for s in subs)
+                    _tts_speak(f"Подзадачи: {txt}")
+                spk.bind(on_release=_speak)
+                hdr.add_widget(spk)
+                card.add_widget(hdr)
+                # Список подзадач
+                for sub in subs:
+                    srow = MDBoxLayout(orientation="horizontal",
+                                       size_hint_y=None, height=S(40), spacing=S(8))
+                    ico = "checkbox-marked" if sub.get("done") else "checkbox-blank-outline"
+                    scb = MDIconButton(icon=ico, size_hint_x=None, width=S(32),
+                                       theme_text_color="Custom",
+                                       text_color=C["accent"] if sub.get("done") else C["text2"])
+                    def _tog(w, s=sub):
+                        s["done"] = not s.get("done", False)
+                        w.icon = "checkbox-marked" if s["done"] else "checkbox-blank-outline"
+                        w.text_color = C["accent"] if s["done"] else C["text2"]
+                        app.save_tasks()
+                        # Обновить счётчик
+                        dn3 = sum(1 for x in subs if x.get("done"))
+                        h_lbl.text = f"Подзадачи {dn3}/{len(subs)}"
+                        cnt_lbl.text = f"{dn3}/{len(subs)}"
+                    scb.bind(on_release=_tog)
+                    srow.add_widget(scb)
+                    # Кнопка озвучить одну подзадачу
+                    spk1 = MDIconButton(icon="volume-medium", size_hint_x=None, width=S(28),
+                                        theme_text_color="Custom", text_color=C["text2"])
+                    spk1.bind(on_release=lambda w, t=sub.get("title",""): _tts_speak(t))
+                    s_lbl = MDLabel(text=sub.get("title",""), font_style="Body2",
+                                    theme_text_color="Custom",
+                                    text_color=C["text2"] if sub.get("done") else C["text"],
+                                    halign="left", valign="middle")
+                    s_lbl.bind(size=lambda w,s2: setattr(w,"text_size",(s2[0],None)))
+                    srow.add_widget(s_lbl)
+                    srow.add_widget(spk1)
+                    card.add_widget(srow)
+                # Кнопка закрыть
+                close_btn = MDRaisedButton(text="Закрыть", md_bg_color=C["surf2"],
+                                            size_hint_y=None, height=S(40),
+                                            on_release=lambda *_: mv.dismiss())
+                card.add_widget(Widget(size_hint_y=None, height=S(6)))
+                card.add_widget(close_btn)
+                mv.add_widget(card); mv.open()
+            sub_btn.bind(on_release=_show_subs)
+            cnt_row.add_widget(sub_btn)
+            sub_col.add_widget(cnt_row)
             prog_w = Widget(size_hint_y=None, height=S(4))
             _pf = [pct_sub]
             def _dp(w,*_):
@@ -6334,10 +6416,19 @@ class TaskDetailScreen(MDScreen):
             sc.bind(minimum_height=sc.setter("height"))
             si=MDBoxLayout(orientation="vertical", adaptive_height=True, spacing=S(4))
             dn_c=sum(1 for s in subs if s.get("done"))
-            si.add_widget(MDLabel(text=f"Подзадачи  {dn_c}/{len(subs)}",
-                                   font_style="Subtitle2",
-                                   theme_text_color="Custom", text_color=C["text"],
-                                   size_hint_y=None, height=S(28)))
+            hdr_row=MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(32))
+            hdr_row.add_widget(MDLabel(text=f"Подзадачи  {dn_c}/{len(subs)}",
+                                       font_style="Subtitle2",
+                                       theme_text_color="Custom", text_color=C["text"]))
+            # Кнопка озвучки подзадач
+            speak_btn=MDIconButton(icon="volume-high", size_hint_x=None, width=S(36),
+                                   theme_text_color="Custom", text_color=C["accent"])
+            def _speak_subs(*_):
+                all_text = ". ".join(s.get("title","") for s in subs)
+                _tts_speak(f"Подзадачи: {all_text}")
+            speak_btn.bind(on_release=_speak_subs)
+            hdr_row.add_widget(speak_btn)
+            si.add_widget(hdr_row)
             for sub in subs:
                 srow=MDBoxLayout(orientation="horizontal", size_hint_y=None,
                                  height=S(38), spacing=S(8))
@@ -6381,15 +6472,18 @@ class TaskDetailScreen(MDScreen):
                         height=S(52), spacing=S(8), padding=[S(8),0])
         row.add_widget(MDIconButton(icon=icon, size_hint_x=None, width=S(34),
                                     theme_text_color="Custom", text_color=C["text2"]))
-        _lbl_tmp=MDLabel(text=label, font_style="Body1", theme_text_color="Primary",
-                      halign="left", valign="middle")
-        row.add_widget(_lbl_tmp)
-        _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-        _lbl_tmp=MDLabel(text=value, font_style="Body2",
-                               theme_text_color="Secondary",
-                               halign="right", size_hint_x=None, width=S(140))
-        row.add_widget(_lbl_tmp)
-        _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
+        lbl=MDLabel(text=label, font_style="Body1", theme_text_color="Primary",
+                    halign="left", valign="middle",
+                    size_hint_x=None, width=S(110),
+                    shorten=True, shorten_from="right")
+        lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        row.add_widget(lbl)
+        val=MDLabel(text=value, font_style="Body2",
+                    theme_text_color="Secondary",
+                    halign="right", valign="middle",
+                    shorten=True, shorten_from="right")
+        val.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        row.add_widget(val)
         parent.add_widget(row)
 
     def _sep(self, parent):
@@ -6491,11 +6585,178 @@ class DailyTodoApp(MDApp):
 
     # ── Голосовой помощник — кнопка ─────────────────────────────────────────
     def _start_voice(self, *_):
-        self._show_toast("\U0001f3a4 Слушаю...")
+        """Запуск голосового помощника с приветствием."""
+        greeting = "Чем могу помочь?"
+        _tts_speak(greeting)
+        self._show_toast("🎤 " + greeting)
+        self._voice_step = None   # текущий шаг диалога
+        self._voice_task_data = {}  # накапливаем данные задачи
         self._voice.start_listening(self._on_voice_result)
 
     def _on_voice_result(self, text):
+        """Обрабатывает голосовой ввод — с поддержкой пошагового диалога."""
+        text = text.strip()
+        if not text:
+            return
+        step = getattr(self, "_voice_step", None)
+
+        # ── Пошаговый режим создания задачи ──────────────────────────────
+        if step == "await_title":
+            self._voice_task_data["title"] = text
+            self._voice_step = "await_category"
+            cats = ", ".join(self.categories)
+            reply = f"Категория? Доступные: {cats}. Или скажите «пропустить»"
+            _tts_speak(reply); self._show_toast(reply)
+            self._voice.start_listening(self._on_voice_result)
+            return
+
+        if step == "await_category":
+            if "пропустить" not in text.lower():
+                for c in self.categories:
+                    if c.lower() in text.lower():
+                        self._voice_task_data["category"] = c; break
+                else:
+                    self._voice_task_data["category"] = self.cur_cat if self.cur_cat != "Все" else self.categories[0]
+            else:
+                self._voice_task_data["category"] = self.categories[0]
+            self._voice_step = "await_date"
+            reply = "Дата? Например: сегодня, завтра, или число. Или «пропустить»"
+            _tts_speak(reply); self._show_toast(reply)
+            self._voice.start_listening(self._on_voice_result)
+            return
+
+        if step == "await_date":
+            t = text.lower()
+            today = date.today()
+            if "сегодня" in t or "пропустить" in t:
+                d = today.strftime("%d.%m.%Y")
+            elif "завтра" in t:
+                d = (today + __import__("datetime").timedelta(days=1)).strftime("%d.%m.%Y")
+            elif "послезавтра" in t:
+                d = (today + __import__("datetime").timedelta(days=2)).strftime("%d.%m.%Y")
+            else:
+                # пробуем распознать число
+                import re as _re
+                m = _re.search(r"\b(\d{1,2})[.\- /](\d{1,2})", text)
+                if m:
+                    d = f"{int(m.group(1)):02d}.{int(m.group(2)):02d}.{today.year}"
+                else:
+                    d = today.strftime("%d.%m.%Y")
+            self._voice_task_data["date"] = d
+            self._voice_step = "await_time"
+            reply = "Время? Например: в 18:00. Или «пропустить»"
+            _tts_speak(reply); self._show_toast(reply)
+            self._voice.start_listening(self._on_voice_result)
+            return
+
+        if step == "await_time":
+            import re as _re
+            m = _re.search(r"\b(\d{1,2})[:\. ](\d{2})\b", text)
+            if m and "пропустить" not in text.lower():
+                self._voice_task_data["time"] = f"{int(m.group(1)):02d}:{m.group(2)}"
+            else:
+                self._voice_task_data["time"] = ""
+            self._voice_step = "await_priority"
+            reply = "Приоритет? Высокий, средний или низкий. Или «пропустить»"
+            _tts_speak(reply); self._show_toast(reply)
+            self._voice.start_listening(self._on_voice_result)
+            return
+
+        if step == "await_priority":
+            t = text.lower()
+            if "высок" in t:
+                prio = "Высокий"
+            elif "низк" in t:
+                prio = "Низкий"
+            else:
+                prio = "Средний"
+            self._voice_task_data["priority"] = prio
+            self._voice_step = "await_confirm"
+            d = self._voice_task_data
+            summary = (f"Создаю задачу: «{d.get('title')}», "
+                       f"категория {d.get('category')}, "
+                       f"дата {d.get('date')}"
+                       + (f", время {d['time']}" if d.get('time') else "")
+                       + f", приоритет {prio}. Сохранить?")
+            _tts_speak(summary); self._show_toast("Скажите «да» или «нет»")
+            self._voice.start_listening(self._on_voice_result)
+            return
+
+        if step == "await_confirm":
+            if any(w in text.lower() for w in ["да","сохран","окей","ок","yes"]):
+                d = self._voice_task_data
+                tid = str(__import__("datetime").datetime.now().timestamp())
+                self.tasks[tid] = {
+                    "id":tid, "title":d.get("title",""), "comment":"",
+                    "category":d.get("category", self.categories[0]),
+                    "priority":d.get("priority","Средний"),
+                    "date":d.get("date",""), "time":d.get("time",""),
+                    "reminder":"", "repeat":"Не повторять",
+                    "subtasks":[], "original_date":d.get("date",""),
+                    "done":False, "result":""
+                }
+                self.save_tasks(); self.refresh_task_list()
+                self._voice_step = None; self._voice_task_data = {}
+                reply = f"Задача «{d.get('title')}» сохранена!"
+                _tts_speak(reply); self._show_toast(reply)
+            else:
+                self._voice_step = None; self._voice_task_data = {}
+                _tts_speak("Отменено."); self._show_toast("Отменено")
+            return
+
+        # ── Открытие формы задачи голосом ────────────────────────────────
+        t_low = text.lower()
+        if any(w in t_low for w in ["заведи","создай","добавь","новая задача","новую задачу"]):
+            # Спрашиваем название через STT
+            self._voice_step = "await_title"
+            reply = "Как называется задача?"
+            _tts_speak(reply); self._show_toast(reply)
+            self._voice.start_listening(self._on_voice_result)
+            return
+
+        # ── Открытие существующей задачи ──────────────────────────────────
+        if "открой" in t_low or "покажи задачу" in t_low:
+            # Ищем задачу по словам
+            words = [w for w in t_low.split() if len(w) > 3 and w not in
+                     ("открой","покажи","задачу","задача","мою","мне")]
+            found = None
+            for task in self.tasks.values():
+                tname = task.get("title","").lower()
+                if any(w in tname for w in words):
+                    found = task; break
+            if found:
+                reply = f"Открываю задачу «{found['title']}»"
+                _tts_speak(reply)
+                Clock.schedule_once(lambda *_: self.open_task_detail(found["id"]), 0.3)
+            else:
+                reply = "Задача не найдена. Уточните название."
+                _tts_speak(reply); self._show_toast(reply)
+            return
+
+        # ── Поиск задач голосом ───────────────────────────────────────────
+        if "найди" in t_low or "поиск" in t_low or "ищи" in t_low:
+            words = [w for w in t_low.split() if len(w) > 3 and w not in
+                     ("найди","поиск","ищи","задачу","задачи")]
+            query = " ".join(words)
+            res = [t for t in self.tasks.values()
+                   if query and query in t.get("title","").lower()]
+            if not res:
+                # нечёткий поиск
+                res = [t for t in self.tasks.values()
+                       if any(w in t.get("title","").lower() for w in words if len(w)>3)]
+            if res:
+                names = "; ".join(t["title"] for t in res[:4])
+                reply = f"Найдено {len(res)}: {names}"
+                if hasattr(self,"_search_field"):
+                    self._search_field.text = query
+            else:
+                reply = "Ничего не найдено"
+            _tts_speak(reply); self._show_toast(reply)
+            return
+
+        # ── Всё остальное — через AI ──────────────────────────────────────
         self._voice.process_command(text)
+
 
     # ── Повторяющиеся задачи ─────────────────────────────────────────────────
     def _check_repeating_tasks(self, *_):
@@ -6677,9 +6938,12 @@ class DailyTodoApp(MDApp):
             icon="microphone", size_hint=(1,1),
             theme_text_color="Custom", text_color=C["accent"]))
         def _vt(w,t):
-            # Реагируем ТОЛЬКО если кнопка видима (вкладка tasks)
             if w.opacity < 0.5: return False
-            if self._voice_btn.collide_point(*t.pos): self._start_voice(); return True
+            if not self._voice_btn.collide_point(*t.pos): return False
+            if getattr(self,"_voice_locked",False): return True
+            self._voice_locked=True
+            Clock.schedule_once(lambda *_: setattr(self,"_voice_locked",False), 1.5)
+            self._start_voice(); return True
         self._voice_btn.bind(on_touch_up=_vt); root.add_widget(self._voice_btn)
 
         sc.add_widget(root); self.sm.add_widget(sc)
@@ -8247,138 +8511,126 @@ class DailyTodoApp(MDApp):
         dlg.dismiss()
 
     def _edit_profile(self):
-        # ── Список эмодзи по категориям ──────────────────────────────────────
-        EMOJI_GROUPS = {
-            "😊 Настроение": [
-                "😊","😄","😁","😎","🤩","😍","🥰","😇",
-                "😌","🙂","😐","😔","😢","😭","😤","😡",
-                "🥳","🤗","😴","🤔","😏","🥺","😬","🤯",
-            ],
-            "💪 Активность": [
-                "💪","🏃","🧘","🏋️","🚴","🏊","⚽","🎯",
-                "🔥","⚡","🌟","✨","🚀","💥","🎉","🏆",
-            ],
-            "🌿 Природа": [
-                "🌸","🌺","🌻","🌹","🍀","🌿","🌊","🌈",
-                "☀️","🌙","⭐","❄️","🍁","🌴","🦋","🐾",
-            ],
-            "❤️ Сердечки": [
-                "❤️","🧡","💛","💚","💙","💜","🖤","🤍",
-                "💖","💗","💓","💞","💝","💘","♥️","🫀",
-            ],
-            "😺 Животные": [
-                "😺","🐶","🐱","🐻","🐼","🦊","🐨","🦁",
-                "🐸","🐧","🦄","🐉","🦅","🦋","🐬","🌺",
-            ],
-        }
-
-        # Текущий выбранный эмодзи
-        _selected = [self.user_emoji]
-
-        from kivy.uix.scrollview import ScrollView as _SV
         from kivy.uix.gridlayout import GridLayout as _GL
 
+        # Только эмодзи которые есть в PNG-базе, по группам
+        EMOJI_GROUPS = {
+            "😊": ["😊","😄","😁","😎","🤩","😍","🥰","😇","😌","🙂","😐","😔","😢","😭","😤","😡","🥳","🤗","😴","🤔","😏","🥺","😬","🤯","😺"],
+            "💪": ["💪","🏃","🧘","🏋️","🚴","🏊","⚽","🎯","🔥","⚡","🌟","✨","🚀","💥","🎉","🏆","🔑","🎁","🎵","📚"],
+            "🌿": ["🌸","🌺","🌻","🌹","🍀","🌿","🌊","🌈","☀️","🌙","⭐","❄️","🍁","🌴","🦋","🐾"],
+            "❤️": ["❤️","🧡","💛","💚","💙","💜","🖤","🤍","💖","💗","💓","💞","💝","💘","💕","🫀"],
+            "🐱": ["😺","🐶","🐱","🐻","🐼","🦊","🐨","🦁","🐸","🐧","🦄","🐉","🦅","🦋","🐬"],
+        }
+
+        _selected = [self.user_emoji]
+        _current_group = [list(EMOJI_GROUPS.keys())[0]]
+
         outer = MDBoxLayout(orientation="vertical", adaptive_height=True,
-                            spacing=S(10), padding=[S(4), S(4)])
+                            spacing=S(8), padding=[S(2),S(4)])
 
         # Поле имени
         nf = MDTextField(hint_text="Имя", text=self.user_name,
                          size_hint_y=None, height=S(52))
         outer.add_widget(nf)
 
-        # Превью текущего эмодзи
+        # Превью
         preview_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                                  height=S(48), spacing=S(12))
+                                  height=S(52), spacing=S(12))
         preview_card = MDCard(size_hint=(None,None), size=(S(48),S(48)),
-                               radius=[S(24)], elevation=0,
-                               md_bg_color=C["surf2"])
-        self._preview_emoji_lbl = EmojiLabel(
-            text=self.user_emoji, font_style="H5",
-            halign="center", valign="middle")
-        preview_card.add_widget(self._preview_emoji_lbl)
+                               radius=[S(24)], elevation=0, md_bg_color=C["surf2"])
+        _ini_path = get_emoji_png(self.user_emoji.strip()) if self.user_emoji else None
+        self._preview_emoji_img = KivyImage(
+            source=_ini_path or "", size_hint=(1,1),
+            allow_stretch=True, keep_ratio=True, opacity=1 if _ini_path else 0)
+        preview_card.add_widget(self._preview_emoji_img)
         preview_row.add_widget(preview_card)
         _hint = MDLabel(text="Выберите эмодзи ниже",
                         font_style="Caption", theme_text_color="Secondary",
-                        size_hint_y=None, height=S(48),
                         halign="left", valign="middle")
         _hint.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         preview_row.add_widget(_hint)
         outer.add_widget(preview_row)
 
-        # Вкладки категорий + сетка эмодзи
-        tab_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                               height=S(36), spacing=S(6))
-        outer.add_widget(tab_row)
+        # Вкладки — горизонтальный ScrollView
+        tab_sv = ScrollView(size_hint_y=None, height=S(44), do_scroll_y=False)
+        tab_row = MDBoxLayout(orientation="horizontal", size_hint_x=None,
+                               spacing=S(6), padding=[S(2),S(4)])
+        tab_row.bind(minimum_width=tab_row.setter("width"))
+        outer.add_widget(tab_sv)
 
-        grid_sv = _SV(size_hint_y=None, height=S(180), do_scroll_x=False)
-        grid = _GL(cols=8, spacing=S(4), padding=S(4), size_hint_y=None)
+        # Сетка эмодзи — вертикальный ScrollView
+        grid_sv = ScrollView(size_hint_y=None, height=S(200), do_scroll_x=False)
+        grid = _GL(cols=6, spacing=S(6), padding=S(4), size_hint_y=None)
         grid.bind(minimum_height=grid.setter("height"))
         grid_sv.add_widget(grid)
         outer.add_widget(grid_sv)
 
         _tab_btns = []
+        _em_cards = []
 
         def _fill_grid(group_name):
-            grid.clear_widgets()
+            grid.clear_widgets(); _em_cards.clear()
             for em in EMOJI_GROUPS[group_name]:
-                em_card = MDCard(size_hint=(None,None), size=(S(38),S(38)),
-                                  radius=[S(8)], elevation=0,
-                                  md_bg_color=C["surf2"] if em != _selected[0] else C["accent"])
-                em_lbl = EmojiLabel(text=em, font_style="Body1",
-                                    halign="center", valign="middle")
-                em_card.add_widget(em_lbl)
-
-                def _pick(w, touch, e=em):
-                    if not w.collide_point(*touch.pos): return
+                ec = MDCard(size_hint=(None,None), size=(S(44),S(44)),
+                             radius=[S(8)], elevation=0,
+                             md_bg_color=C["accent"] if em==_selected[0] else C["surf2"])
+                ec._em = em
+                em_path = get_emoji_png(em.strip())
+                if em_path:
+                    img = KivyImage(source=em_path, size_hint=(1,1),
+                                    allow_stretch=True, keep_ratio=True)
+                    ec.add_widget(img)
+                else:
+                    lbl = MDLabel(text=em, halign="center", valign="middle")
+                    lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+                    ec.add_widget(lbl)
+                def _pick(w, e=em):
                     _selected[0] = e
-                    update_emoji_label(self._preview_emoji_lbl, e)
-                    # обновляем подсветку
-                    _fill_grid(_current_group[0])
-
-                em_card.bind(on_touch_up=_pick)
-                grid.add_widget(em_card)
-
-        _current_group = [list(EMOJI_GROUPS.keys())[0]]
+                    p = get_emoji_png(e.strip())
+                    if p:
+                        self._preview_emoji_img.source=p
+                        self._preview_emoji_img.opacity=1
+                    for c in _em_cards:
+                        c.md_bg_color = C["accent"] if c._em==e else C["surf2"]
+                ec.bind(on_release=_pick)
+                _em_cards.append(ec)
+                grid.add_widget(ec)
 
         def _make_tab(gname):
-            short = gname.split()[0]  # только эмодзи из названия
-            btn = MDCard(size_hint=(None,None), size=(S(36),S(36)),
+            em_path = get_emoji_png(gname.strip())
+            btn = MDCard(size_hint=(None,None), size=(S(40),S(36)),
                           radius=[S(8)], elevation=0,
                           md_bg_color=C["accent"] if gname==_current_group[0] else C["surf2"])
-            lbl = EmojiLabel(text=short, font_style="Body2",
-                              halign="center", valign="middle")
-            btn.add_widget(lbl)
-
-            def _on_tab(w, touch, g=gname):
-                if not w.collide_point(*touch.pos): return
-                _current_group[0] = g
-                for b in _tab_btns:
-                    b.md_bg_color = C["surf2"]
-                w.md_bg_color = C["accent"]
-                _fill_grid(g)
-
-            btn.bind(on_touch_up=_on_tab)
+            if em_path:
+                img = KivyImage(source=em_path, size_hint=(1,1),
+                                allow_stretch=True, keep_ratio=True)
+                btn.add_widget(img)
+            def _on_tab(w):
+                _current_group[0] = gname
+                for b in _tab_btns: b.md_bg_color = C["surf2"]
+                btn.md_bg_color = C["accent"]
+                _fill_grid(gname)
+            btn.bind(on_release=lambda w: _on_tab(w))
             return btn
 
         for gname in EMOJI_GROUPS:
             tb2 = _make_tab(gname)
             _tab_btns.append(tb2)
             tab_row.add_widget(tb2)
-
+        tab_sv.add_widget(tab_row)
         _fill_grid(_current_group[0])
 
         def _do_save(*_):
             self.user_emoji = _selected[0]
             self._save_profile(nf.text, dlg)
             if hasattr(self,"_tb_name_lbl"):
-                self._tb_name_lbl.text=self.user_name or "Имя"
-            # Обновляем аватар в настройках
+                self._tb_name_lbl.text = self.user_name or "Имя"
             if hasattr(self,"_s_emoji_lbl"):
-                em_path=get_emoji_png(self.user_emoji.strip()) if self.user_emoji else None
+                em_path = get_emoji_png(self.user_emoji.strip()) if self.user_emoji else None
                 if em_path and hasattr(self._s_emoji_lbl,"source"):
-                    self._s_emoji_lbl.source=em_path
+                    self._s_emoji_lbl.source = em_path
                 elif hasattr(self._s_emoji_lbl,"text"):
-                    self._s_emoji_lbl.text=self.user_emoji or "😊"
+                    self._s_emoji_lbl.text = self.user_emoji or "😊"
 
         dlg = MDDialog(title="Профиль", type="custom", content_cls=outer,
                        buttons=[
@@ -8388,6 +8640,7 @@ class DailyTodoApp(MDApp):
                                           md_bg_color=C["accent"],
                                           on_release=_do_save)])
         dlg.open()
+
 
     def _save_profile(self, name, dlg):
         if name.strip():
