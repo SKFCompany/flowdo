@@ -6082,16 +6082,18 @@ class TaskFormScreen(MDScreen):
                           height=S(150), spacing=S(12), padding=[S(4),S(4)])
 
         def _make_col(get_fn, set_fn, max_val):
-            col = MDBoxLayout(orientation="vertical", spacing=S(6))
-            up = MDRaisedButton(text="▲", size_hint_y=None, height=S(40),
-                                 md_bg_color=C["surf2"], elevation=0)
+            col = MDBoxLayout(orientation="vertical", spacing=S(4))
+            up = MDRaisedButton(text="+", size_hint_y=None, height=S(44),
+                                 md_bg_color=C["surf2"], elevation=0,
+                                 font_size=S(22))
             lbl = MDLabel(text=f"{get_fn():02d}", font_style="H4", bold=True,
                            halign="center", valign="middle",
                            theme_text_color="Primary",
-                           size_hint_y=None, height=S(48))
+                           size_hint_y=None, height=S(52))
             lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-            dn = MDRaisedButton(text="▼", size_hint_y=None, height=S(40),
-                                 md_bg_color=C["surf2"], elevation=0)
+            dn = MDRaisedButton(text="-", size_hint_y=None, height=S(44),
+                                 md_bg_color=C["surf2"], elevation=0,
+                                 font_size=S(22))
             def _up(*_):
                 set_fn((get_fn()+1) % max_val)
                 lbl.text = f"{get_fn():02d}"
@@ -6425,7 +6427,7 @@ class DailyTodoApp(MDApp):
         self.cfg_store  = JsonStore("config.json")
         self.tasks      = {}
         self.categories = ["Работа","Дом","Личное","Покупки","Тренировки"]
-        self.cur_cat    = "Работа"
+        self.cur_cat    = "Все"
         self.sel_date   = datetime.now().strftime("%d.%m.%Y")
         self.filter_date = False
         self.show_done   = True
@@ -6694,74 +6696,88 @@ class DailyTodoApp(MDApp):
         is_fem=self._is_fem()
         now=datetime.now(); h=now.hour
         greet="Доброе утро," if h<12 else ("Добрый день," if h<18 else "Добрый вечер,")
-        tb=MDBoxLayout(orientation="vertical", size_hint_y=None,
-                       md_bg_color=C["surf"],
-                       height=S(104) if is_fem else S(88),
-                       padding=[S(18),S(10),S(14),S(6)])
+
         if is_fem:
+            # Женская тема: приветствие + имя + дата
+            # Высоты: padding_top=10, r1=26, name_row=40, date=20, padding_bot=6 → ~102
+            tb=MDBoxLayout(orientation="vertical", size_hint_y=None, height=S(102),
+                           md_bg_color=C["surf"],
+                           padding=[S(18),S(10),S(14),S(6)], spacing=S(0))
             r1=MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(26))
-            _lbl_tmp=MDLabel(text=greet, font_style="Caption",
-                                   theme_text_color="Custom", text_color=C["text2"],
-                          halign="left", valign="middle")
-            r1.add_widget(_lbl_tmp)
-            _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
+            greet_lbl=MDLabel(text=greet, font_style="Caption",
+                              theme_text_color="Custom", text_color=C["text2"],
+                              halign="left", valign="middle")
+            greet_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            r1.add_widget(greet_lbl)
             av=MDIconButton(icon="account-circle-outline", size_hint=(None,None),
-                            size=(S(36),S(36)), theme_text_color="Custom", text_color=C["accent"])
+                            size=(S(36),S(36)), theme_text_color="Custom",
+                            text_color=C["accent"])
             av.bind(on_release=lambda *_: self._nav_switch("settings"))
             r1.add_widget(av); tb.add_widget(r1)
-            self._tb_name=EmojiLabel(text=f"{self.user_name} {self.user_emoji}",
-                                   font_style="H5", bold=True,
-                                   theme_text_color="Custom", text_color=C["accent"],
-                                   halign="left", valign="middle",
-                                   size_hint_y=None, height=S(44))
-            self._tb_name.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-            tb.add_widget(self._tb_name)
+
+            # Строка имени: эмодзи (если есть) + имя
+            name_row=MDBoxLayout(orientation="horizontal", spacing=S(6),
+                                  size_hint_y=None, height=S(40))
+            _u_em_path=get_emoji_png(self.user_emoji.strip()) if self.user_emoji else None
+            if _u_em_path:
+                _u_em_img=KivyImage(source=_u_em_path, size_hint=(None,None),
+                                     size=(S(30),S(30)), allow_stretch=True, keep_ratio=True)
+                name_row.add_widget(_u_em_img)
+            _u_name_lbl=MDLabel(text=self.user_name or "Имя", font_style="H5", bold=True,
+                                 theme_text_color="Custom", text_color=C["accent"],
+                                 halign="left", valign="middle")
+            _u_name_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            name_row.add_widget(_u_name_lbl)
+            self._tb_name=name_row; self._tb_name_lbl=_u_name_lbl
+            tb.add_widget(name_row)
+
             self._tb_date=MDLabel(text=self._fmt_date(now), font_style="Caption",
                                    theme_text_color="Custom", text_color=C["text2"],
                                    halign="left", valign="middle",
                                    size_hint_y=None, height=S(20))
             self._tb_date.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             tb.add_widget(self._tb_date)
+
         else:
+            # Мужская тема: иконки справа + СЕГОДНЯ + дата
+            # Высоты: padding_top=10, r1=30, name=30, date=20, padding_bot=6 → ~96
+            tb=MDBoxLayout(orientation="vertical", size_hint_y=None, height=S(96),
+                           md_bg_color=C["surf"],
+                           padding=[S(18),S(10),S(14),S(6)], spacing=S(0))
             r1=MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(30))
             r1.add_widget(MDIconButton(icon="menu", size_hint_x=None, width=S(36),
                                         theme_text_color="Custom", text_color=C["text2"]))
             r1.add_widget(Widget())
-            # Emoji пользователя в мужской теме — справа вместо колокольчика
-            if self.user_emoji:
-                em_btn = MDCard(size_hint=(None,None), size=(S(36),S(36)),
-                                radius=[S(8)], elevation=0, md_bg_color=C["surf2"])
-                em_inner = FloatLayout(size_hint=(1,1))
-                self._tb_emoji_m = EmojiLabel(
-                    text=self.user_emoji, height=S(28), size_hint_y=None,
-                    size_hint_x=None, width=S(28),
-                    pos_hint={"center_x":0.5,"center_y":0.5})
-                em_inner.add_widget(self._tb_emoji_m)
-                em_btn.add_widget(em_inner)
+            # Аватар пользователя — KivyImage если есть PNG, иначе иконка колокольчика
+            _u_em_path_m=get_emoji_png(self.user_emoji.strip()) if self.user_emoji else None
+            if _u_em_path_m:
+                em_btn=MDCard(size_hint=(None,None), size=(S(34),S(34)),
+                              radius=[S(8)], elevation=0, md_bg_color=C["surf2"])
+                em_img=KivyImage(source=_u_em_path_m, size_hint=(1,1),
+                                  allow_stretch=True, keep_ratio=True)
+                em_btn.add_widget(em_img)
                 em_btn.bind(on_touch_up=lambda w,t:
                     self._nav_switch("settings") if w.collide_point(*t.pos) else None)
                 r1.add_widget(em_btn)
-            else:
-                bell=MDIconButton(icon="bell-outline", size_hint_x=None, width=S(36),
-                                  theme_text_color="Custom", text_color=C["text2"])
-                r1.add_widget(bell)
             r1.add_widget(Widget(size_hint_x=None, width=S(4)))
             r1.add_widget(MDIconButton(icon="bell-outline", size_hint_x=None, width=S(36),
                                        theme_text_color="Custom", text_color=C["text2"]))
-            r1.add_widget(Widget(size_hint_x=None, width=0))
             tb.add_widget(r1)
+
             self._tb_name=MDLabel(text="СЕГОДНЯ", font_style="H6", bold=True,
                                    theme_text_color="Primary",
                                    halign="left", valign="middle",
-                                   size_hint_y=None, height=S(34))
+                                   size_hint_y=None, height=S(30))
             self._tb_name.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             tb.add_widget(self._tb_name)
+
             self._tb_date=MDLabel(text=self._fmt_date(now), font_style="Caption",
                                    theme_text_color="Secondary",
                                    halign="left", valign="middle",
                                    size_hint_y=None, height=S(20))
             self._tb_date.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             tb.add_widget(self._tb_date)
+
         return tb
 
     def _fmt_date(self, now):
@@ -6858,63 +6874,60 @@ class DailyTodoApp(MDApp):
     #  СТРАНИЦА: ЗАДАЧИ
     # ════════════════════════════════════════════════════════════════════════
     def _mk_tasks_page(self):
-        """
-        Архитектура:
-          FloatLayout
-            ├─ ScrollView (size_hint 1,1)  ← весь контент, включая шапку
-            │    └─ inn (adaptive_height)
-            │         ├─ _scroll_header  (задача дня + категории)  [скроллится]
-            │         ├─ фильтры
-            │         └─ task_list
-            └─ _sticky_header  (копия шапки, position top, hidden по умолчанию)
-                               ← появляется при прокрутке ВНИЗ, исчезает при возврате
-
-        При прокрутке вверх sticky мгновенно прячется — и видна оригинальная шапка.
-        При прокрутке вниз (шапка ушла вверх за экран) sticky плавно появляется.
-        """
         is_fem=self._is_fem()
-        HEADER_H = S(138)   # высота шапки (задача дня S(96) + категории S(42))
 
-        fl = FloatLayout()
+        pg = MDBoxLayout(orientation="vertical")
 
-        # ════════════════════════════════════════════════════════════════
-        # 1. Один ScrollView — ВСЁ прокручивается
-        # ════════════════════════════════════════════════════════════════
+        # ScrollView — весь контент прокручивается
         sv = ScrollView(size_hint=(1,1))
         inn = MDBoxLayout(orientation="vertical", adaptive_height=True,
                           spacing=S(8), padding=[S(12),S(8),S(12),S(80)])
         sv.add_widget(inn)
 
-        # ── Шапка внутри скролла ─────────────────────────────────────
-        self._scroll_header = MDBoxLayout(orientation="vertical",
-                                          size_hint_y=None, height=HEADER_H)
-
-        # — Задача дня —
+        # ── Задача дня ───────────────────────────────────────────────────
         day_c = MDCard(size_hint_y=None, height=S(96),
                        radius=[S(18)] if is_fem else [S(10)],
                        elevation=2 if is_fem else 0,
                        md_bg_color=C["surf"], padding=[S(16),S(14)])
         dc = MDBoxLayout(orientation="horizontal", spacing=S(12))
         di = MDBoxLayout(orientation="vertical", spacing=S(4))
-        _lbl_tmp=EmojiLabel(text="\u2b50 Задача дня", font_style="Caption",
-                               theme_text_color="Custom", text_color=C["text2"],
-                               size_hint_y=None, height=S(18),
-                      halign="left", valign="middle")
-        di.add_widget(_lbl_tmp)
-        _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-        self._day_task_lbl = MDLabel(text="Загрузка...", font_style="Subtitle1",
+
+        hdr_path = get_emoji_png("⭐")
+        if hdr_path:
+            hdr_row = MDBoxLayout(orientation="horizontal",
+                                  size_hint_y=None, height=S(18), spacing=S(4))
+            hdr_img = KivyImage(source=hdr_path, size_hint=(None,None),
+                                size=(S(16),S(16)), allow_stretch=True, keep_ratio=True)
+            hdr_row.add_widget(hdr_img)
+            hdr_lbl = MDLabel(text="Задача дня", font_style="Caption",
+                              theme_text_color="Custom", text_color=C["text2"],
+                              halign="left", valign="middle")
+            hdr_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            hdr_row.add_widget(hdr_lbl)
+            di.add_widget(hdr_row)
+        else:
+            hdr_lbl = MDLabel(text="Задача дня", font_style="Caption",
+                              theme_text_color="Custom", text_color=C["text2"],
+                              size_hint_y=None, height=S(18),
+                              halign="left", valign="middle")
+            hdr_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            di.add_widget(hdr_lbl)
+
+        self._day_task_lbl = MDLabel(text="Список пуст", font_style="Subtitle1",
                                      bold=True, theme_text_color="Custom",
                                      text_color=C["text"], size_hint_y=None, height=S(30),
                                      halign="left", valign="middle",
                                      shorten=True, shorten_from="right")
         self._day_task_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         di.add_widget(self._day_task_lbl)
-        self._day_task_sub = EmojiLabel(text="", font_style="Caption",
+
+        self._day_task_sub = MDLabel(text="", font_style="Caption",
                                      theme_text_color="Custom", text_color=C["text2"],
                                      size_hint_y=None, height=S(20),
                                      halign="left", valign="middle")
         self._day_task_sub.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        di.add_widget(self._day_task_sub); dc.add_widget(di)
+        di.add_widget(self._day_task_sub)
+        dc.add_widget(di)
 
         prog_box = MDBoxLayout(orientation="vertical", size_hint_x=None,
                                width=S(56), spacing=S(4))
@@ -6940,23 +6953,25 @@ class DailyTodoApp(MDApp):
         self._pct_lbl = MDLabel(text="0%", font_style="Caption",
                                 halign="center", theme_text_color="Secondary",
                                 size_hint_y=None, height=S(16))
-        prog_box.add_widget(self._pct_lbl); dc.add_widget(prog_box)
+        prog_box.add_widget(self._pct_lbl)
+        dc.add_widget(prog_box)
         day_c.add_widget(dc)
-        self._scroll_header.add_widget(day_c)
+        inn.add_widget(day_c)
 
-        # — Категории —
+        # ── Категории ────────────────────────────────────────────────────
         cat_sv = ScrollView(size_hint_y=None, height=S(42), do_scroll_y=False)
         self.cat_bar = MDBoxLayout(orientation="horizontal", size_hint_x=None,
                                    spacing=S(8), padding=[S(14),S(4),S(14),S(4)])
         self.cat_bar.bind(minimum_width=self.cat_bar.setter("width"))
         self._cat_btns = {}
+        b_all = self._mk_cat_btn("Все"); self._cat_btns["Все"]=b_all
+        self.cat_bar.add_widget(b_all)
         for cat in self.categories:
             b = self._mk_cat_btn(cat); self._cat_btns[cat]=b; self.cat_bar.add_widget(b)
         cat_sv.add_widget(self.cat_bar)
-        self._scroll_header.add_widget(cat_sv)
-        inn.add_widget(self._scroll_header)
+        inn.add_widget(cat_sv)
 
-        # ── Фильтры ──────────────────────────────────────────────────
+        # ── Фильтры ──────────────────────────────────────────────────────
         flt_sv = ScrollView(size_hint_y=None, height=S(38), do_scroll_y=False)
         flt_r = MDBoxLayout(orientation="horizontal", size_hint_x=None,
                             spacing=S(6), padding=[0,S(2)])
@@ -6969,7 +6984,7 @@ class DailyTodoApp(MDApp):
             lbl = MDLabel(text=text, font_style="Caption",
                           halign="center", valign="middle",
                           theme_text_color="Custom", text_color=C["text"], size_hint=(1,1))
-            lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
+            lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             card._lbl=lbl; card.add_widget(lbl)
             def _tap(w,t):
                 if card.collide_point(*t.pos): cb(); return True
@@ -6982,34 +6997,29 @@ class DailyTodoApp(MDApp):
             flt_r.add_widget(b)
         flt_sv.add_widget(flt_r); inn.add_widget(flt_sv)
 
-        # ── Поиск задач ───────────────────────────────────────────────
+        # ── Поиск ────────────────────────────────────────────────────────
         search_box = MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                                 height=S(44), spacing=S(8),
-                                 padding=[0, S(2), 0, S(2)])
-        search_ico = MDIconButton(icon="magnify", size_hint=(None, None),
-                                  size=(S(36), S(36)),
+                                 height=S(44), spacing=S(8), padding=[0,S(2),0,S(2)])
+        search_ico = MDIconButton(icon="magnify", size_hint=(None,None),
+                                  size=(S(36),S(36)),
                                   theme_text_color="Custom", text_color=C["text2"])
         self._search_field = MDTextField(
             hint_text="Поиск задач, подзадач, комментариев...",
-            size_hint=(1, None), height=S(40),
-            mode="fill")
+            size_hint=(1,None), height=S(40), mode="fill")
         clear_btn = MDIconButton(icon="close-circle-outline",
-                                  size_hint=(None, None), size=(S(36), S(36)),
-                                  theme_text_color="Custom", text_color=C["text2"],
-                                  opacity=0)
+                                 size_hint=(None,None), size=(S(36),S(36)),
+                                 theme_text_color="Custom", text_color=C["text2"],
+                                 opacity=0)
         self._search_clear_btn = clear_btn
-
         def _on_search_text(field, text):
             self._search_query = text.strip().lower()
             clear_btn.opacity = 1 if text.strip() else 0
             self.refresh_task_list()
-
         def _on_clear_search(*_):
             self._search_field.text = ""
             self._search_query = ""
             clear_btn.opacity = 0
             self.refresh_task_list()
-
         self._search_field.bind(text=_on_search_text)
         clear_btn.bind(on_release=_on_clear_search)
         search_box.add_widget(search_ico)
@@ -7017,129 +7027,29 @@ class DailyTodoApp(MDApp):
         search_box.add_widget(clear_btn)
         inn.add_widget(search_box)
 
-        # ── Счётчик результатов поиска ────────────────────────────────
         self._search_result_lbl = MDLabel(
             text="", font_style="Caption",
             theme_text_color="Custom", text_color=C["text2"],
             size_hint_y=None, height=S(18), halign="left")
         self._search_result_lbl.bind(
-            size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+            size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         inn.add_widget(self._search_result_lbl)
 
-        # ── Список задач ──────────────────────────────────────────────
+        # ── Список задач ──────────────────────────────────────────────────
         self.task_list = MDBoxLayout(orientation="vertical", adaptive_height=True,
                                      spacing=S(10) if is_fem else S(6))
         inn.add_widget(self.task_list)
-        fl.add_widget(sv)
 
-        # ════════════════════════════════════════════════════════════════
-        # 2. Sticky-шапка — Float поверх, появляется при прокрутке вниз
-        # ════════════════════════════════════════════════════════════════
-        self._tasks_header = MDBoxLayout(
-            orientation="vertical", size_hint=(1, None), height=HEADER_H,
-            pos_hint={"top": 1}, opacity=0)
-        with self._tasks_header.canvas.before:
-            Color(*C["bg"]); _hbg = Rectangle(size=(Window.width, HEADER_H), pos=(0,0))
-        def _upd_hbg(w,*_):
-            _hbg.size=(w.width, HEADER_H); _hbg.pos=(w.x, w.y)
-        self._tasks_header.bind(pos=_upd_hbg, size=_upd_hbg)
-
-        # — Задача дня (sticky-копия меток, не дублируем виджеты — просто рамка) —
-        sticky_day = MDCard(size_hint_y=None, height=S(96),
-                            radius=[S(18)] if is_fem else [S(10)],
-                            elevation=4, md_bg_color=C["surf"],
-                            padding=[S(16),S(14)])
-        sticky_dc = MDBoxLayout(orientation="horizontal", spacing=S(12))
-        sticky_di = MDBoxLayout(orientation="vertical", spacing=S(4))
-        _lbl_tmp=EmojiLabel(text="\u2b50 Задача дня", font_style="Caption",
-                                      theme_text_color="Custom", text_color=C["text2"],
-                                      size_hint_y=None, height=S(18),
-                      halign="left", valign="middle")
-        sticky_di.add_widget(_lbl_tmp)
-        _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-        self._sticky_task_lbl = MDLabel(text="", font_style="Subtitle1", bold=True,
-                                         theme_text_color="Custom", text_color=C["text"],
-                                         size_hint_y=None, height=S(30),
-                                         halign="left", valign="middle",
-                                         shorten=True, shorten_from="right")
-        self._sticky_task_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        sticky_di.add_widget(self._sticky_task_lbl)
-        self._sticky_task_sub = MDLabel(text="", font_style="Caption",
-                                         theme_text_color="Custom", text_color=C["text2"],
-                                         size_hint_y=None, height=S(20),
-                                         halign="left", valign="middle")
-        self._sticky_task_sub.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        sticky_di.add_widget(self._sticky_task_sub)
-        sticky_dc.add_widget(sticky_di)
-        # правая часть — просто процент
-        self._sticky_pct = MDLabel(text="0%", font_style="Subtitle2", bold=True,
-                                    halign="center", theme_text_color="Custom",
-                                    text_color=C["accent"],
-                                    size_hint_x=None, width=S(56))
-        sticky_dc.add_widget(self._sticky_pct)
-        sticky_day.add_widget(sticky_dc)
-        self._tasks_header.add_widget(sticky_day)
-
-        # — Категории (sticky-полоска, та же cat_bar через proxy) —
-        sticky_cat_sv = ScrollView(size_hint_y=None, height=S(42), do_scroll_y=False)
-        self._sticky_cat_bar = MDBoxLayout(orientation="horizontal", size_hint_x=None,
-                                            spacing=S(8), padding=[S(14),S(4),S(14),S(4)])
-        self._sticky_cat_bar.bind(minimum_width=self._sticky_cat_bar.setter("width"))
-        # Клоны кнопок категорий — нажатие работает через оригинальный _switch_cat
-        for cat in self.categories:
-            b = self._mk_cat_btn(cat)
-            self._sticky_cat_bar.add_widget(b)
-        sticky_cat_sv.add_widget(self._sticky_cat_bar)
-        self._tasks_header.add_widget(sticky_cat_sv)
-        fl.add_widget(self._tasks_header)
-
-        # ════════════════════════════════════════════════════════════════
-        # 3. Логика показа/скрытия sticky по скроллу
-        # ════════════════════════════════════════════════════════════════
-        self._last_scroll_y = 1.0
-
-        def _on_scroll(sv_inst, scroll_y):
-            # scroll_y: 1.0 = самый верх, 0.0 = самый низ
-            going_up   = scroll_y > self._last_scroll_y
-            going_down = scroll_y < self._last_scroll_y
-            self._last_scroll_y = scroll_y
-
-            # Считаем, ушла ли оригинальная шапка за край экрана.
-            # Высота контента и вьюпорта:
-            content_h  = inn.height
-            viewport_h = sv_inst.height
-            scrollable = max(content_h - viewport_h, 1)
-            # pixels прокручено от верха:
-            scrolled_px = (1.0 - scroll_y) * scrollable
-
-            header_gone = scrolled_px > HEADER_H  # шапка ушла с экрана
-
-            if going_up:
-                # Прокрутка ВВЕРХ — немедленно прячем sticky
-                from kivy.animation import Animation
-                Animation.cancel_all(self._tasks_header, "opacity")
-                self._tasks_header.opacity = 0
-            elif going_down and header_gone:
-                # Прокрутка ВНИЗ и шапка за экраном — плавно показываем sticky
-                from kivy.animation import Animation
-                if self._tasks_header.opacity < 1:
-                    Animation(opacity=1, d=0.18, t="out_quad").start(self._tasks_header)
-            # Синхронизируем тексты sticky с оригиналом
-            if hasattr(self, "_sticky_task_lbl"):
-                self._sticky_task_lbl.text = self._day_task_lbl.text
-                self._sticky_task_sub.text = self._day_task_sub.text
-                self._sticky_pct.text      = self._day_pct_lbl.text
-
-        sv.bind(scroll_y=_on_scroll)
-
-        # Обёртка страницы
-        pg = MDBoxLayout(orientation="vertical")
-        pg.add_widget(fl)
+        pg.add_widget(sv)
         return pg
 
     def _mk_cat_btn(self, cat):
         is_fem=self._is_fem(); sel=(cat==self.cur_cat)
-        em=CAT_EMOJI.get(cat,"")
+        # Для "Все" — специальная иконка ✨
+        if cat == "Все":
+            em = "\u2728"  # ✨ есть в базе
+        else:
+            em=CAT_EMOJI.get(cat,"")
         rad=S(16) if is_fem else S(8)
         bg=C["accent"] if sel else C["surf2"]
         tc=(1,1,1,1) if sel else C["text"]
@@ -7177,7 +7087,9 @@ class DailyTodoApp(MDApp):
                 b._lbl.bold=sel
 
     def _switch_cat(self, c):
-        self.cur_cat=c; self._update_cat_colors(); self.refresh_task_list()
+        self.cur_cat=c; self._update_cat_colors()
+        self.refresh_task_list()
+        self._save_config()
 
     # ════════════════════════════════════════════════════════════════════════
     #  СТРАНИЦА: КАЛЕНДАРЬ (с почасовым видом)
@@ -8109,6 +8021,8 @@ class DailyTodoApp(MDApp):
         """Перестраивает cat_bar после изменения эмодзи категорий."""
         if hasattr(self,"cat_bar"):
             self.cat_bar.clear_widgets(); self._cat_btns={}
+            b_all=self._mk_cat_btn("Все"); self._cat_btns["Все"]=b_all
+            self.cat_bar.add_widget(b_all)
             for c in self.categories:
                 b=self._mk_cat_btn(c); self._cat_btns[c]=b; self.cat_bar.add_widget(b)
             self._update_cat_colors()
@@ -8126,7 +8040,7 @@ class DailyTodoApp(MDApp):
         from kivy.uix.modalview import ModalView
         from kivy.uix.gridlayout import GridLayout as GL
         mv=ModalView(background_color=(0,0,0,0.5), auto_dismiss=False, size_hint=(0.9,None))
-        card=MDCard(orientation="vertical", size_hint_y=None, height=S(360),
+        card=MDCard(orientation="vertical", size_hint_y=None, height=S(400),
                     radius=[S(16)], elevation=6, md_bg_color=C["surf"],
                     padding=[S(14),S(12)])
         title_lbl=MDLabel(text=f"Эмодзи для «{cat}»", font_style="H6", bold=True,
@@ -8134,21 +8048,40 @@ class DailyTodoApp(MDApp):
                            size_hint_y=None, height=S(36))
         title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(title_lbl)
-        preview_lbl=MDLabel(text=f"Выбрано: {cur_em or 'нет'}", font_style="Body2",
-                             theme_text_color="Secondary", halign="left", valign="middle",
-                             size_hint_y=None, height=S(28))
+        # Preview строка: картинка + текст
+        preview_row=MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                height=S(36), spacing=S(8))
+        preview_img_box=MDBoxLayout(size_hint=(None,None), size=(S(32),S(32)))
+        _ini_path=get_emoji_png(cur_em.strip()) if cur_em else None
+        preview_img=KivyImage(source=_ini_path or "", size_hint=(1,1),
+                              allow_stretch=True, keep_ratio=True,
+                              opacity=1 if _ini_path else 0)
+        preview_img_box.add_widget(preview_img)
+        preview_row.add_widget(preview_img_box)
+        preview_lbl=MDLabel(text="нет" if not cur_em else "выбрано",
+                            font_style="Body2", theme_text_color="Secondary",
+                            halign="left", valign="middle")
         preview_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        card.add_widget(preview_lbl)
-        grid=GL(cols=8, spacing=S(6), size_hint_y=None, padding=[0,S(4)])
+        preview_row.add_widget(preview_lbl)
+        card.add_widget(preview_row)
+        # ScrollView чтобы сетка всегда влезала независимо от размера экрана
+        em_sv=ScrollView(size_hint_y=None, height=S(220), do_scroll_x=False)
+        grid=GL(cols=8, spacing=S(4), size_hint_y=None, size_hint_x=1,
+                padding=[S(2),S(2)])
         grid.bind(minimum_height=grid.setter("height"))
         em_cards=[]
         def _pick(em):
             sel_emoji[0]=em
-            preview_lbl.text=f"Выбрано: {em}"
+            em_path=get_emoji_png(em.strip())
+            if em_path:
+                preview_img.source=em_path; preview_img.opacity=1
+            else:
+                preview_img.opacity=0
+            preview_lbl.text="выбрано"
             for ec in em_cards:
                 ec.md_bg_color=C["accent"] if ec._em==em else C["surf2"]
         for em in CAT_EMOJI_OPTS:
-            ec=MDCard(size_hint=(None,None), size=(S(36),S(36)),
+            ec=MDCard(size_hint=(None,None), size=(S(38),S(38)),
                       radius=[S(8)], elevation=0,
                       md_bg_color=C["accent"] if em==cur_em else C["surf2"])
             ec._em=em
@@ -8164,15 +8097,18 @@ class DailyTodoApp(MDApp):
             ec.bind(on_release=lambda w,e=em: _pick(e))
             em_cards.append(ec)
             grid.add_widget(ec)
-        card.add_widget(grid)
+        em_sv.add_widget(grid)
+        card.add_widget(em_sv)
         btn_row=MDBoxLayout(orientation="horizontal", size_hint_y=None,
                             height=S(44), spacing=S(6))
         def _cancel_em(*_): mv.dismiss()
         def _clear_em(*_):
             CAT_EMOJI.pop(cat,None)
+            self._save_config()
             self._rebuild_cats_list(); self._refresh_cat_bar(); mv.dismiss()
         def _apply_em(*_):
             if sel_emoji[0]: CAT_EMOJI[cat]=sel_emoji[0]
+            self._save_config()
             self._rebuild_cats_list(); self._refresh_cat_bar(); mv.dismiss()
         btn_row.add_widget(MDFlatButton(text="Отмена", on_release=_cancel_em))
         btn_row.add_widget(MDFlatButton(text="Убрать", on_release=_clear_em))
@@ -8246,17 +8182,32 @@ class DailyTodoApp(MDApp):
                         spacing=S(10), padding=[S(4)])
         nf=MDTextField(hint_text="Название категории", size_hint_y=None, height=S(52))
         box.add_widget(nf)
+        # Preview строка
+        em_prev_row=MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                height=S(36), spacing=S(8))
+        em_prev_img_box=MDBoxLayout(size_hint=(None,None), size=(S(32),S(32)))
+        em_prev_img=KivyImage(source="", size_hint=(1,1),
+                              allow_stretch=True, keep_ratio=True, opacity=0)
+        em_prev_img_box.add_widget(em_prev_img)
+        em_prev_row.add_widget(em_prev_img_box)
         em_preview_lbl=MDLabel(text="Эмодзи: не выбран", font_style="Body2",
-                                theme_text_color="Secondary", halign="left",
-                                valign="middle", size_hint_y=None, height=S(28))
+                                theme_text_color="Secondary", halign="left", valign="middle")
         em_preview_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        box.add_widget(em_preview_lbl)
-        grid=GL(cols=6, spacing=S(6), size_hint_y=None, padding=[0,S(2)])
+        em_prev_row.add_widget(em_preview_lbl)
+        box.add_widget(em_prev_row)
+        em_sv=ScrollView(size_hint_y=None, height=S(180), do_scroll_x=False)
+        grid=GL(cols=8, spacing=S(4), size_hint_y=None, size_hint_x=1,
+                padding=[S(2),S(2)])
         grid.bind(minimum_height=grid.setter("height"))
         em_cards=[]
         def _pick_em(em):
             sel_emoji[0]=em
-            em_preview_lbl.text=f"Эмодзи: {em}"
+            em_path=get_emoji_png(em.strip())
+            if em_path:
+                em_prev_img.source=em_path; em_prev_img.opacity=1
+            else:
+                em_prev_img.opacity=0
+            em_preview_lbl.text="выбрано"
             for ec in em_cards:
                 ec.md_bg_color=C["accent"] if ec._em==em else C["surf2"]
         for em in CAT_EMOJI_OPTS:
@@ -8275,7 +8226,8 @@ class DailyTodoApp(MDApp):
             ec.bind(on_release=lambda w,e=em: _pick_em(e))
             em_cards.append(ec)
             grid.add_widget(ec)
-        box.add_widget(grid)
+        em_sv.add_widget(grid)
+        box.add_widget(em_sv)
         dlg=MDDialog(title="Новая категория", type="custom", content_cls=box,
                      buttons=[
                          MDFlatButton(text="Отмена", on_release=lambda *_: dlg.dismiss()),
@@ -8285,9 +8237,9 @@ class DailyTodoApp(MDApp):
 
     def _do_add_cat(self, name, dlg, emoji=""):
         if name and name not in self.categories:
-            self.categories.append(name); self._save_config()
-            if emoji:
-                CAT_EMOJI[name]=emoji
+            self.categories.append(name)
+            if emoji: CAT_EMOJI[name]=emoji
+            self._save_config()
             self._rebuild_cats_list()
             if hasattr(self,"cat_bar"):
                 b=self._mk_cat_btn(name); self._cat_btns[name]=b
@@ -8418,18 +8370,15 @@ class DailyTodoApp(MDApp):
         def _do_save(*_):
             self.user_emoji = _selected[0]
             self._save_profile(nf.text, dlg)
-            if hasattr(self,"_tb_name"):
-                update_emoji_label(self._tb_name,
-                                   f"{self.user_name} {self.user_emoji}")
+            if hasattr(self,"_tb_name_lbl"):
+                self._tb_name_lbl.text=self.user_name or "Имя"
             # Обновляем аватар в настройках
             if hasattr(self,"_s_emoji_lbl"):
                 em_path=get_emoji_png(self.user_emoji.strip()) if self.user_emoji else None
                 if em_path and hasattr(self._s_emoji_lbl,"source"):
                     self._s_emoji_lbl.source=em_path
-                elif not em_path and hasattr(self._s_emoji_lbl,"text"):
+                elif hasattr(self._s_emoji_lbl,"text"):
                     self._s_emoji_lbl.text=self.user_emoji or "😊"
-                else:
-                    update_emoji_label(self._s_emoji_lbl, self.user_emoji)
 
         dlg = MDDialog(title="Профиль", type="custom", content_cls=outer,
                        buttons=[
@@ -8443,9 +8392,8 @@ class DailyTodoApp(MDApp):
     def _save_profile(self, name, dlg):
         if name.strip():
             self.user_name=name.strip()
-            if hasattr(self,"_tb_name"):
-                new_text = f"{self.user_name} {self.user_emoji}"
-                update_emoji_label(self._tb_name, new_text)
+            if hasattr(self,"_tb_name_lbl"):
+                self._tb_name_lbl.text=self.user_name
             if hasattr(self,"_s_name"): self._s_name.text=self.user_name
             self._save_config()
         dlg.dismiss()
@@ -8483,9 +8431,12 @@ class DailyTodoApp(MDApp):
                 for t in self.tasks.values():
                     if t.get("category")==old: t["category"]=n
         self.categories=new
-        if self.cur_cat not in self.categories: self.cur_cat=self.categories[0]
+        if self.cur_cat not in self.categories and self.cur_cat != "Все":
+            self.cur_cat = "Все"
         if hasattr(self,"cat_bar"):
             self.cat_bar.clear_widgets(); self._cat_btns={}
+            b_all=self._mk_cat_btn("Все"); self._cat_btns["Все"]=b_all
+            self.cat_bar.add_widget(b_all)
             for c in self.categories:
                 b=self._mk_cat_btn(c); self._cat_btns[c]=b; self.cat_bar.add_widget(b)
             self._update_cat_colors()
@@ -8590,7 +8541,10 @@ class DailyTodoApp(MDApp):
         self._ref_ev=None
         if not hasattr(self,"task_list"): return
         self.task_list.clear_widgets()
-        tasks=[t for t in self.tasks.values() if t.get("category")==self.cur_cat]
+        if self.cur_cat == "Все":
+            tasks = list(self.tasks.values())
+        else:
+            tasks=[t for t in self.tasks.values() if t.get("category")==self.cur_cat]
         if self.filter_date: tasks=[t for t in tasks if t.get("date")==self.sel_date]
         if not self.show_done: tasks=[t for t in tasks if not t.get("done",False)]
 
@@ -8644,7 +8598,8 @@ class DailyTodoApp(MDApp):
 
         total=len(tasks); done=sum(1 for t in tasks if t.get("done"))
         pct=done/total if total else 0.0
-        self.stat_lbl.text=f"{self.cur_cat}: {total} задач  {done} выполнено" \
+        cat_label = "Все категории" if self.cur_cat=="Все" else self.cur_cat
+        self.stat_lbl.text=f"{cat_label}: {total} задач  {done} выполнено" \
             if hasattr(self,"stat_lbl") else ""
         if hasattr(self,"_pct_lbl"): self._pct_lbl.text=f"{int(pct*100)}%"
         self._prog_fill=pct
@@ -8662,13 +8617,13 @@ class DailyTodoApp(MDApp):
                 tv=pick[0].get("time","")
                 sub_txt=(tv if tv else
                     ("Поставь цель на сегодня \U0001f496" if is_fem else "до конца дня"))
-                update_emoji_label(self._day_task_sub, sub_txt)
+                self._day_task_sub.text = sub_txt
             else:
                 done_txt=("Всё выполнено! \U0001f389" if done else
                     ("Добавь первую задачу" if is_fem else "Список пуст"))
                 self._day_task_lbl.text=done_txt
                 sub2=f"Выполнено {done} дел \U0001f49e" if (done and is_fem) else ""
-                update_emoji_label(self._day_task_sub, sub2)
+                self._day_task_sub.text = sub2
         if self.cur_tab=="calendar":
             Clock.schedule_once(lambda *_: self._refresh_cal(), 0.05)
 
@@ -8751,12 +8706,22 @@ class DailyTodoApp(MDApp):
             if cats: self.categories=cats
         if self.cfg_store.exists("weekly_goal"):
             self.weekly_goal=self.cfg_store.get("weekly_goal").get("value",80)
+        if self.cfg_store.exists("cat_emoji"):
+            saved=self.cfg_store.get("cat_emoji").get("map",{})
+            CAT_EMOJI.update(saved)
+        if self.cfg_store.exists("cur_cat"):
+            saved_cat=self.cfg_store.get("cur_cat").get("name","Все")
+            # "Все" всегда валидна; пользовательские — проверяем
+            if saved_cat == "Все" or saved_cat in self.categories:
+                self.cur_cat = saved_cat
 
     def _save_config(self):
         self.cfg_store.put("profile",    name=self.user_name, emoji=self.user_emoji)
         self.cfg_store.put("theme",      name=self.theme_name)
         self.cfg_store.put("categories", list=self.categories)
         self.cfg_store.put("weekly_goal",value=self.weekly_goal)
+        self.cfg_store.put("cat_emoji",  map=dict(CAT_EMOJI))
+        self.cfg_store.put("cur_cat",    name=self.cur_cat)
 
     # stat_lbl placeholder
     @property
