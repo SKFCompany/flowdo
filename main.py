@@ -5110,33 +5110,63 @@ def _get_emoji_map():
     try:
         raw = _zlib.decompress(_b64.b64decode(_EMOJI_PNG_DATA))
         _EMOJI_MAP = _ejson.loads(raw.decode("utf-8"))
-        # Создаём временную папку для PNG файлов
-        import tempfile
-        _EMOJI_PNG_DIR = _eos.path.join(tempfile.gettempdir(), "flowdo_emoji")
+        # Определяем папку для PNG файлов
+        if PLATFORM == "android":
+            try:
+                from android.storage import app_storage_path
+                _base = app_storage_path()
+            except Exception:
+                _base = _eos.path.dirname(_eos.path.abspath(__file__))
+        else:
+            _base = _eos.path.dirname(_eos.path.abspath(__file__))
+        _EMOJI_PNG_DIR = _eos.path.join(_base, ".emoji_cache")
         _eos.makedirs(_EMOJI_PNG_DIR, exist_ok=True)
-    except Exception:
+    except Exception as ex:
         _EMOJI_MAP = {}
+        _EMOJI_PNG_DIR = tempfile.gettempdir()
     return _EMOJI_MAP
 
 def get_emoji_png(emoji_char):
     """Возвращает путь к PNG файлу для emoji. Создаёт файл если нужно."""
+    if not emoji_char:
+        return None
+    # Нормализуем — убираем variation selector
+    em_plain = emoji_char.replace('\ufe0f', '').strip()
+
+    # Проверяем кэш
     if emoji_char in _EMOJI_PNG_CACHE:
         return _EMOJI_PNG_CACHE[emoji_char]
+    if em_plain in _EMOJI_PNG_CACHE:
+        return _EMOJI_PNG_CACHE[emoji_char]
+
     emap = _get_emoji_map()
-    if emoji_char not in emap:
+    # Ищем с variation selector и без
+    b64data = emap.get(emoji_char) or emap.get(em_plain)
+    if not b64data:
         return None
-    # Безопасное имя файла через ord()
-    safe = "_".join(f"{ord(c):04X}" for c in emoji_char)
-    path = _eos.path.join(_EMOJI_PNG_DIR, f"{safe}.png")
-    if not _eos.path.exists(path):
-        try:
-            png_bytes = _b64.b64decode(emap[emoji_char])
+
+    if _EMOJI_PNG_DIR is None:
+        _get_emoji_map()  # инициализируем директорию
+
+    try:
+        # Безопасное имя файла
+        safe = "_".join(f"{ord(c):05X}" for c in em_plain if c.strip())
+        if not safe:
+            safe = f"{abs(hash(emoji_char)):08X}"
+        path = _eos.path.join(_EMOJI_PNG_DIR or tempfile.gettempdir(), f"{safe}.png")
+
+        if not _eos.path.exists(path):
+            png_bytes = _b64.b64decode(b64data)
             with open(path, "wb") as f:
                 f.write(png_bytes)
-        except Exception:
-            return None
-    _EMOJI_PNG_CACHE[emoji_char] = path
-    return path
+
+        if _eos.path.exists(path) and _eos.path.getsize(path) > 0:
+            _EMOJI_PNG_CACHE[emoji_char] = path
+            _EMOJI_PNG_CACHE[em_plain] = path
+            return path
+    except Exception:
+        pass
+    return None
 
 
 def _has_emoji(text):
@@ -5540,104 +5570,72 @@ class VoiceAssistant:
             self._do_listen_vosk(callback)
 
     def _do_listen_android(self, callback):
-        """Android голосовой ввод через стандартный Intent."""
+        """
+        Android STT через startActivityForResult — самый надёжный способ.
+        Открывает стандартный Google диалог распознавания речи.
+        """
         try:
-            from jnius import autoclass, PythonJavaClass, java_method
+            from jnius import autoclass
             from android.runnable import run_on_ui_thread
 
-            PythonActivity = autoclass("org.kivy.android.PythonActivity")
-            Intent         = autoclass("android.content.Intent")
+            PythonActivity   = autoclass("org.kivy.android.PythonActivity")
+            Intent           = autoclass("android.content.Intent")
             RecognizerIntent = autoclass("android.speech.RecognizerIntent")
-            SpeechRecognizer = autoclass("android.speech.SpeechRecognizer")
 
-            ctx = PythonActivity.mActivity
-
-            # Проверяем доступность STT
-            if not SpeechRecognizer.isRecognitionAvailable(ctx):
-                Clock.schedule_once(
-                    lambda *_: self.app._show_toast(
-                        "Speech Recognition недоступен на устройстве"), 0)
-                callback("")
-                return
-
-            class _Listener(PythonJavaClass):
-                __javainterfaces__ = ["android/speech/RecognitionListener"]
-                __javacontext__    = "app"
-
-                @java_method("(Landroid/os/Bundle;)V")
-                def onResults(self, results):
-                    try:
-                        arr = results.getStringArrayList(
-                            SpeechRecognizer.RESULTS_RECOGNITION)
-                        txt = str(arr.get(0)) if arr and arr.size() > 0 else ""
-                        Clock.schedule_once(lambda *_, t=txt: callback(t), 0)
-                    except Exception:
-                        Clock.schedule_once(lambda *_: callback(""), 0)
-
-                @java_method("(I)V")
-                def onError(self, error):
-                    msgs = {1:"Нет сети",2:"Нет сети",3:"Нет разрешения",
-                            4:"Сервер недоступен",5:"Ошибка клиента",
-                            6:"Нет речи",7:"Нет речи",8:"Ошибка сервера"}
-                    msg = msgs.get(error, f"Ошибка {error}")
-                    Clock.schedule_once(
-                        lambda *_, m=msg: self.app._show_toast(f"STT: {m}"), 0)
-                    Clock.schedule_once(lambda *_: callback(""), 0)
-
-                @java_method("(Landroid/os/Bundle;)V")
-                def onReadyForSpeech(self, p): pass
-                @java_method("(I)V")
-                def onBeginningOfSpeech(self, p): pass
-                @java_method("(FF)V")
-                def onRmsChanged(self, a, b): pass
-                @java_method("([B)V")
-                def onBufferReceived(self, b): pass
-                @java_method("()V")
-                def onEndOfSpeech(self): pass
-                @java_method("(Landroid/os/Bundle;)V")
-                def onPartialResults(self, p): pass
-                @java_method("(ILandroid/os/Bundle;)V")
-                def onEvent(self, a, b): pass
-
-            # Держим ссылку чтобы не собрал GC
-            self._android_listener = _Listener()
-            self._android_recognizer = [None]
+            self._stt_callback = callback
+            VoiceAssistant._active_instance = self
 
             @run_on_ui_thread
-            def _start():
+            def _launch():
                 try:
-                    recognizer = SpeechRecognizer.createSpeechRecognizer(ctx)
-                    recognizer.setRecognitionListener(self._android_listener)
-                    self._android_recognizer[0] = recognizer
-
                     intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                     intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,
                                     RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                     intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
-                    intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ru-RU")
-                    intent.putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_RESULTS,
-                                    True)
                     intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                    recognizer.startListening(intent)
+                    intent.putExtra(RecognizerIntent.EXTRA_PROMPT, "Говорите команду...")
+                    PythonActivity.mActivity.startActivityForResult(intent, 1001)
                 except Exception as ex:
-                    em = str(ex)[:50]
+                    em = str(ex)[:60]
                     Clock.schedule_once(
-                        lambda *_, e=em: self.app._show_toast(f"STT init: {e}"), 0)
+                        lambda *_, e=em: self.app._show_toast(f"STT: {e}"), 0)
                     Clock.schedule_once(lambda *_: callback(""), 0)
 
-            _start()
+            _launch()
 
         except ImportError:
-            # jnius не доступен — fallback на текстовый ввод
             Clock.schedule_once(
-                lambda *_: self.app._show_toast(
-                    "jnius недоступен. Введите команду текстом"), 0)
+                lambda *_: self.app._show_toast("jnius недоступен"), 0)
             callback("")
         except Exception as ex:
             em = str(ex)[:60]
             Clock.schedule_once(
                 lambda *_, e=em: self.app._show_toast(f"STT ошибка: {e}"), 0)
             callback("")
+
+    @staticmethod
+    def on_activity_result(request_code, result_code, intent_obj):
+        """Вызывается из Activity при получении результата STT."""
+        if request_code != 1001:
+            return
+        va = getattr(VoiceAssistant, "_active_instance", None)
+        if not va or not hasattr(va, "_stt_callback"):
+            return
+        cb = va._stt_callback
+        RESULT_OK = -1
+        try:
+            if result_code == RESULT_OK and intent_obj:
+                from jnius import autoclass
+                SpeechRecognizer = autoclass("android.speech.SpeechRecognizer")
+                arr = intent_obj.getStringArrayListExtra(
+                    SpeechRecognizer.RESULTS_RECOGNITION)
+                if arr and arr.size() > 0:
+                    txt = str(arr.get(0))
+                    Clock.schedule_once(lambda *_, t=txt: cb(t), 0)
+                    return
+        except Exception:
+            pass
+        Clock.schedule_once(lambda *_: cb(""), 0)
 
     def _do_listen_vosk(self, callback):
         """Десктопное распознавание через vosk + pyaudio."""
@@ -7440,6 +7438,16 @@ class DailyTodoApp(MDApp):
     def build(self):
         self.theme_cls.theme_style     = "Light"
         self.theme_cls.primary_palette = "Pink"
+
+        # Подключаем обработчик результата Activity (для STT на Android)
+        if PLATFORM == "android":
+            try:
+                from android import activity as _android_activity
+                def _on_activity_result(request_code, result_code, intent):
+                    VoiceAssistant.on_activity_result(request_code, result_code, intent)
+                _android_activity.bind(on_activity_result=_on_activity_result)
+            except Exception:
+                pass
         # Загружаем шрифт с эмодзи если доступен (Android / Linux)
         _emoji_paths = [
             "/system/fonts/NotoColorEmoji.ttf",
