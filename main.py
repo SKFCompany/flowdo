@@ -4832,85 +4832,141 @@ class VoiceAssistant:
 
     # ── Оверлей ввода команды ────────────────────────────────────────────────
     def _show_overlay(self, on_result):
-        from kivy.uix.modalview import ModalView
-        mv = ModalView(background_color=(0,0,0,0.65), auto_dismiss=True,
-                       size_hint=(0.95, None), height=S(220),
-                       pos_hint={"center_x": 0.5, "top": 0.92})
+        mv = ModalView(background_color=(0,0,0,0.75), auto_dismiss=True,
+                       size_hint=(0.95, None), height=S(340),
+                       pos_hint={"center_x": 0.5, "top": 0.95})
         self._overlay = mv
 
         card = MDCard(orientation="vertical", size_hint=(1,1),
-                      radius=[S(20)], elevation=10,
-                      md_bg_color=C["surf"], padding=[S(16), S(14)])
+                      radius=[S(20)], elevation=12,
+                      md_bg_color=C["surf"], padding=[S(16), S(14)],
+                      spacing=S(6))
 
-        # заголовок
-        hdr = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(34))
-        mic_ico = MDIconButton(icon="microphone" if self._has_mic() else "microphone-off",
-                               size_hint_x=None, width=S(32),
-                               theme_text_color="Custom", text_color=C["accent"])
-        title_lbl = MDLabel(text="Голосовой помощник",
+        # ── Заголовок ─────────────────────────────────────────────────────
+        hdr = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(36))
+        mic_ico = MDIconButton(
+            icon="microphone" if self._has_mic() else "microphone-off",
+            size_hint_x=None, width=S(34),
+            theme_text_color="Custom", text_color=C["accent"])
+        title_lbl = MDLabel(text="Чем могу помочь?",
                             font_style="Subtitle1", bold=True,
-                            theme_text_color="Custom", text_color=C["text"])
+                            theme_text_color="Custom", text_color=C["text"],
+                            halign="left", valign="middle")
         title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        close_btn = MDIconButton(icon="close", size_hint_x=None, width=S(32),
+        close_btn = MDIconButton(icon="close", size_hint_x=None, width=S(34),
                                  theme_text_color="Custom", text_color=C["text2"])
         close_btn.bind(on_release=lambda *_: mv.dismiss())
         hdr.add_widget(mic_ico); hdr.add_widget(title_lbl); hdr.add_widget(close_btn)
         card.add_widget(hdr)
 
-        # подсказка
-        hint_lbl = MDLabel(
-            text="добавь задачу / что на сегодня? / открой календарь / статистика...",
+        # ── Примеры команд ────────────────────────────────────────────────
+        examples = [
+            "«Добавь задачу купить молоко завтра»",
+            "«Добавь задачу позвонить маме в 15:00 в Личное»",
+            "«Найди задачу отчёт»",
+            "«Что на сегодня?»",
+            "«Открой календарь»",
+        ]
+        ex_lbl = MDLabel(
+            text="  ".join(examples[:3]),
             font_style="Caption", theme_text_color="Secondary",
-            size_hint_y=None, height=S(18), halign="left")
-        hint_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        card.add_widget(hint_lbl)
+            size_hint_y=None, height=S(32), halign="left")
+        ex_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(ex_lbl)
 
-        # поле ввода
-        nf = MDTextField(hint_text="Введите или продиктуйте команду...",
-                         size_hint_y=None, height=S(54),
-                         mode="fill")
-        card.add_widget(nf)
-
-        # статус
-        self._status_lbl = MDLabel(text="", font_style="Caption",
-                                    theme_text_color="Custom", text_color=C["accent"],
-                                    size_hint_y=None, height=S(18), halign="left")
+        # ── Статус / анимация ─────────────────────────────────────────────
+        self._status_lbl = MDLabel(
+            text="🎤 Нажмите «Слушать» или введите команду",
+            font_style="Caption",
+            theme_text_color="Custom", text_color=C["accent"],
+            size_hint_y=None, height=S(22), halign="center")
         self._status_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(self._status_lbl)
 
-        # кнопки
-        btn_row = MDBoxLayout(orientation="horizontal", spacing=S(10),
-                              size_hint_y=None, height=S(44))
-        cancel = MDFlatButton(text="Отмена", size_hint_x=0.35,
-                              theme_text_color="Custom", text_color=C["text2"])
+        # ── Поле ввода ────────────────────────────────────────────────────
+        nf = MDTextField(
+            hint_text="Введите или продиктуйте команду...",
+            size_hint_y=None, height=S(54), mode="fill")
+        card.add_widget(nf)
+
+        # ── Кнопки ────────────────────────────────────────────────────────
+        btn_row = MDBoxLayout(orientation="horizontal",
+                              size_hint_y=None, height=S(46), spacing=S(8))
+
+        cancel = MDFlatButton(
+            text="Отмена", size_hint_x=0.28,
+            theme_text_color="Custom", text_color=C["text2"])
         cancel.bind(on_release=lambda *_: mv.dismiss())
+        btn_row.add_widget(cancel)
 
-        # кнопка микрофона
         if self._has_mic():
-            mic_btn = MDRaisedButton(text="\U0001f3a4 Слушать", size_hint_x=0.3,
-                                     md_bg_color=C["surf2"], elevation=0)
-            def _start_mic(*_):
-                self._status_lbl.text = "\U0001f534 Слушаю..."
-                mic_btn.disabled = True
-                self._do_listen(lambda txt: Clock.schedule_once(
-                    lambda *_: self._fill_and_go(nf, txt, mv, on_result), 0))
-            mic_btn.bind(on_release=_start_mic)
-            btn_row.add_widget(cancel); btn_row.add_widget(mic_btn)
-            go_sx = 0.35
-        else:
-            go_sx = 0.65
+            mic_btn = MDRaisedButton(
+                text="🎤 Слушать", size_hint_x=0.35,
+                md_bg_color=C["surf2"], elevation=0)
+            _mic_active = [False]
 
-        go = MDRaisedButton(text="Выполнить", size_hint_x=go_sx,
-                             md_bg_color=C["accent"], elevation=0)
-        go.bind(on_release=lambda *_: self._submit(nf.text, mv, on_result))
+            def _start_mic(*_):
+                if _mic_active[0]:
+                    return
+                _mic_active[0] = True
+                mic_btn.text = "⏹ Стоп"
+                mic_btn.md_bg_color = C["orange"] if "orange" in C else (0.9,0.4,0.1,1)
+                self._status_lbl.text = "🔴 Слушаю... говорите"
+                self._listening = True
+
+                def _on_result(txt):
+                    _mic_active[0] = False
+                    mic_btn.text = "🎤 Слушать"
+                    mic_btn.md_bg_color = C["surf2"]
+                    if txt:
+                        nf.text = txt
+                        self._status_lbl.text = f"✅ Распознано: {txt}"
+                    else:
+                        self._status_lbl.text = "Не удалось распознать, попробуйте ещё"
+
+                def _on_result_ui(txt):
+                    Clock.schedule_once(lambda *_: _on_result(txt), 0)
+
+                self._do_listen(_on_result_ui)
+
+            def _mic_touch(w, t):
+                if w.collide_point(*t.pos):
+                    if _mic_active[0]:
+                        self._listening = False
+                        _mic_active[0] = False
+                        mic_btn.text = "🎤 Слушать"
+                        mic_btn.md_bg_color = C["surf2"]
+                        self._status_lbl.text = "Остановлено"
+                    else:
+                        _start_mic()
+                    return True
+            mic_btn.bind(on_touch_up=_mic_touch)
+            btn_row.add_widget(mic_btn)
+            go_sx = 0.37
+        else:
+            go_sx = 0.72
+            self._status_lbl.text = "Микрофон недоступен. Введите команду текстом"
+
+        go = MDRaisedButton(
+            text="▶ Выполнить", size_hint_x=go_sx,
+            md_bg_color=C["accent"], elevation=0)
+
+        def _go_press(*_):
+            cmd = nf.text.strip()
+            if not cmd:
+                self._status_lbl.text = "Введите команду"
+                return
+            self._status_lbl.text = "⏳ Выполняю..."
+            mv.dismiss()
+            Clock.schedule_once(lambda *_: on_result(cmd), 0.1)
+
+        go.bind(on_release=_go_press)
         btn_row.add_widget(go)
         card.add_widget(btn_row)
-        mv.add_widget(card); mv.open()
-        Clock.schedule_once(lambda *_: setattr(nf, "focus", True), 0.35)
-
-        def _on_text_validate(*_):
-            self._submit(nf.text, mv, on_result)
-        nf.bind(on_text_validate=_on_text_validate)
+        mv.add_widget(card)
+        mv.open()
+        Clock.schedule_once(lambda *_: setattr(nf, "focus", True), 0.4)
+        nf.bind(on_text_validate=lambda *_: _go_press())
 
     def _fill_and_go(self, nf, text, mv, on_result):
         nf.text = text
@@ -5276,35 +5332,173 @@ class VoiceAssistant:
                     return t
         return None
 
-    # ── Старый локальный разбор (быстрый, без API) ───────────────────────────
+    # ── Полный локальный разбор команд (без API) ─────────────────────────────
     def _local_command(self, text):
-        """Быстрые команды без API. Возвращает True если команда обработана."""
+        """
+        Разбирает команду локально, без API.
+        Возвращает True если команда полностью обработана.
+        Понимает: добавление задачи, поиск, навигацию, информацию.
+        """
         t = text.lower().strip()
         app = self.app
 
-        if "календарь" in t or "расписание" in t:
+        # ── Навигация ────────────────────────────────────────────────────────
+        if any(w in t for w in ["открой календарь","покажи календарь","расписание"]):
             app._nav_switch("calendar"); self.speak("Открываю календарь"); return True
-        if "настройки" in t and "открой" in t:
+        if any(w in t for w in ["открой настройки","настройки"]):
             app._nav_switch("settings"); self.speak("Открываю настройки"); return True
-        if "статистика" in t and "открой" in t:
+        if any(w in t for w in ["статистика","статистику","открой статистику"]):
             app._nav_switch("stats"); self.speak("Открываю статистику"); return True
-        if ("задачи" in t or "главная" in t) and "открой" in t:
+        if any(w in t for w in ["задачи","главная","открой задачи"]):
             app._nav_switch("tasks"); self.speak("Открываю задачи"); return True
 
-        # Быстрые ответы без API
-        for kw in ["что на сегодня","задачи на сегодня","план на день"]:
-            if kw in t:
-                today_s = date.today().strftime("%d.%m.%Y")
-                tl = [tt for tt in app.tasks.values()
-                      if tt.get("date")==today_s and not tt.get("done")]
-                if tl:
-                    names = "; ".join(tt["title"] for tt in tl[:4])
-                    self.speak(f"На сегодня {len(tl)}: {names}")
+        # ── Что на сегодня ───────────────────────────────────────────────────
+        if any(w in t for w in ["что на сегодня","задачи на сегодня","план на день","что сегодня"]):
+            today_s = date.today().strftime("%d.%m.%Y")
+            tl = [tt for tt in app.tasks.values()
+                  if tt.get("date") == today_s and not tt.get("done")]
+            if tl:
+                names = "; ".join(tt["title"] for tt in tl[:5])
+                self.speak(f"На сегодня {len(tl)} задач: {names}")
+            else:
+                self.speak("На сегодня задач нет!")
+            return True
+
+        # ── Поиск задачи ─────────────────────────────────────────────────────
+        search_kws = ["найди задачу","найди","ищи задачу","поищи","найти задачу"]
+        for kw in search_kws:
+            if t.startswith(kw) or f" {kw} " in t:
+                query = t
+                for kw2 in search_kws:
+                    query = query.replace(kw2, "").strip()
+                results = [tt for tt in app.tasks.values()
+                           if query and query in tt.get("title","").lower()]
+                if not results:
+                    # нечёткий поиск по словам
+                    words = [w for w in query.split() if len(w) > 2]
+                    results = [tt for tt in app.tasks.values()
+                               if any(w in tt.get("title","").lower() for w in words)]
+                if results:
+                    names = "; ".join(tt["title"] + (" ✓" if tt.get("done") else "")
+                                      for tt in results[:4])
+                    self.speak(f"Нашёл {len(results)}: {names}")
                 else:
-                    self.speak("На сегодня задач нет!")
+                    self.speak(f"Задача не найдена: {query}")
                 return True
 
-        return False
+        # ── Добавить задачу голосом ──────────────────────────────────────────
+        add_kws = ["добавь задачу","создай задачу","новая задача","добавить задачу",
+                   "создать задачу","добавь","поставь задачу","запиши задачу"]
+        matched_kw = None
+        for kw in add_kws:
+            if kw in t:
+                matched_kw = kw
+                break
+
+        if matched_kw:
+            # Извлекаем параметры из текста
+            rest = t.replace(matched_kw, "").strip()
+
+            # Определяем категорию
+            cat = app.cur_cat
+            for c in app.categories:
+                if c.lower() in rest:
+                    cat = c
+                    rest = rest.replace(c.lower(), "").strip()
+                    break
+
+            # Определяем приоритет
+            prio = "Средний"
+            if any(w in rest for w in ["высокий","срочно","важно","важная"]):
+                prio = "Высокий"
+                for w in ["высокий приоритет","срочно","важно","важная","высокий"]:
+                    rest = rest.replace(w, "").strip()
+            elif any(w in rest for w in ["низкий","не срочно"]):
+                prio = "Низкий"
+                for w in ["низкий приоритет","не срочно","низкий"]:
+                    rest = rest.replace(w, "").strip()
+
+            # Определяем дату
+            task_date = date.today().strftime("%d.%m.%Y")
+            if "завтра" in rest:
+                task_date = (date.today() + timedelta(days=1)).strftime("%d.%m.%Y")
+                rest = rest.replace("завтра", "").strip()
+            elif "послезавтра" in rest:
+                task_date = (date.today() + timedelta(days=2)).strftime("%d.%m.%Y")
+                rest = rest.replace("послезавтра", "").strip()
+            elif "на неделю" in rest or "через неделю" in rest:
+                task_date = (date.today() + timedelta(days=7)).strftime("%d.%m.%Y")
+                rest = re.sub(r"на неделю|через неделю", "", rest).strip()
+
+            # Определяем время
+            task_time = ""
+            time_match = re.search(r"\b(\d{1,2})[:\.](\d{2})\b", rest)
+            if time_match:
+                task_time = f"{time_match.group(1).zfill(2)}:{time_match.group(2)}"
+                rest = rest[:time_match.start()] + rest[time_match.end():]
+            else:
+                # "в 10", "в 14 часов"
+                time_match2 = re.search(r"\bв\s+(\d{1,2})\s*(?:час|утра|вечера|дня)?\b", rest)
+                if time_match2:
+                    h = int(time_match2.group(1))
+                    if "вечера" in rest[time_match2.start():time_match2.end()+10]:
+                        if h < 12: h += 12
+                    task_time = f"{h:02d}:00"
+                    rest = rest[:time_match2.start()] + rest[time_match2.end():].strip()
+
+            # Предлоги и мусор
+            rest = re.sub(r"\b(на|в|для|по|с|от|до|и)\b", "", rest).strip()
+            rest = re.sub(r"\s{2,}", " ", rest).strip()
+
+            title = rest.strip()
+            if not title:
+                self.speak("Скажите название задачи")
+                return True
+
+            # Создаём задачу
+            task_id = str(time.time())
+            task = {
+                "id": task_id,
+                "title": title.capitalize(),
+                "date": task_date,
+                "time": task_time,
+                "category": cat,
+                "priority": prio,
+                "done": False,
+                "comment": "",
+                "subtasks": [],
+            }
+            app.tasks[task_id] = task
+            app.save_tasks()
+            app.refresh_task_list()
+
+            time_str = f" в {task_time}" if task_time else ""
+            cat_str = f" в категорию {cat}" if cat != app.cur_cat else ""
+            self.speak(f"Добавил: {title}{cat_str}, {task_date}{time_str}, приоритет {prio}")
+            return True
+
+        # ── Сколько задач / статистика ───────────────────────────────────────
+        if any(w in t for w in ["сколько задач","покажи статистику","итого"]):
+            total = len(app.tasks)
+            done  = sum(1 for tt in app.tasks.values() if tt.get("done"))
+            self.speak(f"Всего {total} задач, выполнено {done}, осталось {total-done}")
+            return True
+
+        # ── Выполнить задачу ─────────────────────────────────────────────────
+        done_kws = ["выполни задачу","отметь выполненной","сделано","выполнена"]
+        for kw in done_kws:
+            if kw in t:
+                query = t.replace(kw, "").strip()
+                for tt in app.tasks.values():
+                    if query and query in tt.get("title","").lower():
+                        tt["done"] = True
+                        app.save_tasks(); app.refresh_task_list()
+                        self.speak(f"Отметил выполненной: {tt['title']}")
+                        return True
+                self.speak("Задача не найдена")
+                return True
+
+        return False  # команда не распознана локально
 
     # ── Совместимость ─────────────────────────────────────────────────────────
     def _text_fallback(self, on_result):
@@ -5837,12 +6031,148 @@ class TaskFormScreen(MDScreen):
                      bar_width=S(3), scroll_type=['bars','content'])
         inn=MDBoxLayout(orientation="vertical", adaptive_height=True,
                         spacing=S(0), padding=[S(16),S(14),S(16),S(30)])
-        # Заголовок
-        self.tf_title=MDTextField(hint_text="Что нужно сделать?",
-                                   text=td.get("title",""),
-                                   size_hint_y=None, height=S(54))
-        inn.add_widget(self.tf_title)
-        inn.add_widget(Widget(size_hint_y=None, height=S(12)))
+        # ── Заголовок + AI кнопка + автоподсказки ────────────────────────────
+        title_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                height=S(54), spacing=S(8))
+        self.tf_title = MDTextField(hint_text="Что нужно сделать?",
+                                    text=td.get("title",""),
+                                    size_hint_x=1, size_hint_y=None, height=S(54))
+        ai_btn = MDCard(size_hint=(None,None), size=(S(46),S(46)),
+                        radius=[S(12)], elevation=0, md_bg_color=C["accent"])
+        ai_lbl = MDLabel(text="AI", font_style="Caption", bold=True,
+                         halign="center", valign="middle",
+                         theme_text_color="Custom", text_color=(1,1,1,1),
+                         size_hint=(1,1))
+        ai_btn.add_widget(ai_lbl)
+        title_row.add_widget(self.tf_title)
+        title_row.add_widget(ai_btn)
+        inn.add_widget(title_row)
+
+        # ── Автоподсказки из истории задач ────────────────────────────────
+        _all_titles = list(dict.fromkeys(
+            t["title"] for t in self._app.tasks.values()
+            if t.get("title","").strip()
+        ))
+        suggest_box = MDBoxLayout(orientation="vertical",
+                                  size_hint_y=None, height=0, spacing=S(2))
+
+        def _show_suggestions(field, text):
+            suggest_box.clear_widgets()
+            q = text.strip().lower()
+            if len(q) < 2:
+                suggest_box.height = 0
+                return
+            matches = [tl for tl in _all_titles
+                       if q in tl.lower() and tl.lower() != q][:5]
+            if not matches:
+                suggest_box.height = 0
+                return
+            suggest_box.height = len(matches) * S(34)
+            for m in matches:
+                row = MDCard(size_hint_y=None, height=S(32),
+                             radius=[S(6)], elevation=0,
+                             md_bg_color=C["surf2"], padding=[S(8),0])
+                slbl = MDLabel(text=m, font_style="Caption",
+                               halign="left", valign="middle",
+                               theme_text_color="Primary", size_hint=(1,1))
+                slbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+                row.add_widget(slbl)
+                def _pick(w, t, title=m):
+                    if w.collide_point(*t.pos):
+                        field.text = title
+                        suggest_box.clear_widgets()
+                        suggest_box.height = 0
+                        return True
+                row.bind(on_touch_up=_pick)
+                suggest_box.add_widget(row)
+
+        self.tf_title.bind(text=_show_suggestions)
+        inn.add_widget(suggest_box)
+
+        # ── AI статус ─────────────────────────────────────────────────────
+        self._ai_status = MDLabel(text="", font_style="Caption",
+                                   theme_text_color="Custom", text_color=C["accent"],
+                                   size_hint_y=None, height=S(18), halign="left")
+        self._ai_status.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        inn.add_widget(self._ai_status)
+
+        # ── AI заполнение по API ──────────────────────────────────────────
+        def _ai_fill(*_):
+            title_text = self.tf_title.text.strip()
+            api_key = getattr(self._app, "_anthropic_api_key", "")
+            if not api_key:
+                self._app._voice._show_api_key_dialog()
+                return
+            if not title_text:
+                self._ai_status.text = "Введите название задачи"
+                return
+            self._ai_status.text = "⏳ Генерирую..."
+            ai_btn.disabled = True
+
+            def _thread():
+                import urllib.request as _ur, json as _js
+                try:
+                    ctx = "\n".join(
+                        f"- {t.get('title','')} ({t.get('category','')})"
+                        for t in list(self._app.tasks.values())[-10:]
+                    )
+                    payload = _js.dumps({
+                        "model": "claude-sonnet-4-20250514",
+                        "max_tokens": 400,
+                        "system": (
+                            "Помощник по задачам. Улучши название, предложи категорию, "
+                            "приоритет и заметку. "
+                            "Отвечай ТОЛЬКО JSON: "
+                            '{"title":"...","category":"...","priority":"Высокий|Средний|Низкий","comment":"..."}'
+                            f"\nКонтекст задач:\n{ctx}"
+                        ),
+                        "messages": [{"role":"user","content": title_text}]
+                    }).encode()
+                    req = _ur.Request(
+                        "https://api.anthropic.com/v1/messages",
+                        data=payload,
+                        headers={"Content-Type":"application/json",
+                                 "anthropic-version":"2023-06-01",
+                                 "x-api-key": api_key},
+                        method="POST")
+                    with _ur.urlopen(req, timeout=15) as r:
+                        data = _js.loads(r.read())
+                    raw = "".join(b["text"] for b in data.get("content",[])
+                                  if b.get("type")=="text").strip()
+                    raw = re.sub(r"```json?", "", raw).replace("```","").strip()
+                    result = _js.loads(raw)
+                    Clock.schedule_once(lambda *_, r=result: _apply(r), 0)
+                except Exception as ex:
+                    em = str(ex)[:50]
+                    Clock.schedule_once(
+                        lambda *_, e=em: setattr(self._ai_status,"text",f"Ошибка: {e}"), 0)
+                finally:
+                    Clock.schedule_once(lambda *_: setattr(ai_btn,"disabled",False), 0)
+
+            def _apply(r):
+                if r.get("title"):
+                    self.tf_title.text = r["title"]
+                    suggest_box.clear_widgets(); suggest_box.height = 0
+                if r.get("comment") and hasattr(self,"_note_preview"):
+                    self._note_text = r["comment"]
+                    self._note_preview.text = r["comment"]
+                    self._note_preview.text_color = C["text"]
+                cat = r.get("category","")
+                if cat and cat in self._app.categories:
+                    self._sel_cat = cat
+                    for c, b in self._cat_btns.items():
+                        b.md_bg_color = C["accent"] if c==cat else C["surf2"]
+                prio = r.get("priority","")
+                if prio in ("Высокий","Средний","Низкий"):
+                    self._pick_prio(prio)
+                self._ai_status.text = "✅ Заполнено"
+
+            threading.Thread(target=_thread, daemon=True).start()
+
+        def _ai_touch(w, t):
+            if w.collide_point(*t.pos): _ai_fill(); return True
+        ai_btn.bind(on_touch_up=_ai_touch)
+        inn.add_widget(Widget(size_hint_y=None, height=S(4)))
         # Категория
         inn.add_widget(self._lbl("Категория"))
         cats=self._app.categories
