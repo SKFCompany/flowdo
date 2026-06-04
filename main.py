@@ -5503,6 +5503,10 @@ class VoiceAssistant:
                     if txt:
                         nf.text = txt
                         self._status_lbl.text = f"✅ Распознано: {txt}"
+                        # На Android Google STT закрывает свой диалог —
+                        # автоматически выполняем команду без нажатия кнопки
+                        if PLATFORM == "android":
+                            Clock.schedule_once(lambda *_: _go_press(), 0.3)
                     else:
                         self._status_lbl.text = "Не удалось распознать, попробуйте ещё"
 
@@ -7540,7 +7544,7 @@ class DailyTodoApp(MDApp):
         """Запуск голосового помощника с приветствием."""
         greeting = "Чем могу помочь?"
         _tts_speak(greeting)
-        self._show_toast("🎤 " + greeting)
+        self._show_toast(greeting)
         self._voice_step = None   # текущий шаг диалога
         self._voice_task_data = {}  # накапливаем данные задачи
         self._voice.start_listening(self._on_voice_result)
@@ -8954,7 +8958,7 @@ class DailyTodoApp(MDApp):
         if PLATFORM == "android":
             vosk_status = "[OK] STT: встроенный Android (Google)" if ANDROID_STT_OK \
                           else "[!] STT: нет разрешения микрофона"
-            _lbl_tmp=MDLabel(text=f"\U0001f4f1 Платформа: Android", font_style="Caption",
+            _lbl_tmp=MDLabel(text=f"Платформа: Android", font_style="Caption",
                              theme_text_color="Custom", text_color=C["accent"],
                              size_hint_y=None, height=S(20), halign="left", valign="middle")
             va_in.add_widget(_lbl_tmp)
@@ -9054,7 +9058,7 @@ class DailyTodoApp(MDApp):
         _api_save_btn.bind(on_release=_save_api_key)
         va_in.add_widget(_api_save_btn)
 
-        test_btn=MDRaisedButton(text="\U0001f3a4 Тест голосового помощника",
+        test_btn=MDRaisedButton(text="Тест голосового помощника",
                                  size_hint_y=None, height=S(42), elevation=0,
                                  md_bg_color=C["accent"])
         test_btn.bind(on_release=lambda *_: self._start_voice())
@@ -9064,8 +9068,8 @@ class DailyTodoApp(MDApp):
         inn.add_widget(_sec("ТЕМА ПРИЛОЖЕНИЯ"))
         g_row=MDBoxLayout(orientation="horizontal", spacing=S(10),
                            size_hint_y=None, height=S(46))
-        for glabel,gtheme,gactive in [("\U0001f338 Женский","Роза",is_fem),
-                                       ("\u26a1 Мужской","Бронза",not is_fem)]:
+        for glabel,gtheme,gactive in [("Женский","Роза",is_fem),
+                                       ("Мужской","Бронза",not is_fem)]:
             gc=MDCard(size_hint_x=0.5, size_hint_y=None, height=S(44),
                       radius=[S(22)], elevation=0,
                       md_bg_color=C["accent"] if gactive else C["surf2"],
@@ -9134,9 +9138,9 @@ class DailyTodoApp(MDApp):
         data_c.bind(minimum_height=data_c.setter("height"))
         di=MDBoxLayout(orientation="vertical", adaptive_height=True)
         for dtxt,dico,dcb in [
-            ("Резервная копия","content-save-outline",self._export),
+            ("Резервная копия","content-save-outline",self._backup_restore),
             ("Экспорт задач","upload-outline",self._export),
-            ("О приложении","information-outline",lambda:None)]:
+            ("О приложении","information-outline",self._show_about)]:
             di.add_widget(self._sett_row(dico,dtxt,dcb))
         data_c.add_widget(di); inn.add_widget(data_c)
         self._exp_lbl=MDLabel(text="", font_style="Caption",
@@ -9860,8 +9864,49 @@ class DailyTodoApp(MDApp):
             Clock.schedule_once(lambda *_: self._refresh_cal(), 0.05)
 
     # ── Экспорт ──────────────────────────────────────────────────────────────
+    def _backup_restore(self, *_):
+        """Резервная копия — сохраняет JSON с данными."""
+        self._export()
+
+    def _show_about(self, *_):
+        from kivy.uix.modalview import ModalView
+        mv = ModalView(background_color=(0,0,0,0.7), auto_dismiss=True,
+                       size_hint=(0.9, None), height=S(320),
+                       pos_hint={"center_x":0.5,"center_y":0.5})
+        card = MDCard(orientation="vertical", size_hint=(1,1),
+                      radius=[S(20)], elevation=8,
+                      md_bg_color=C["surf"], padding=[S(24), S(20)], spacing=S(12))
+        title = MDLabel(text="Flow·Do", font_style="H5", bold=True,
+                        theme_text_color="Custom", text_color=C["accent"],
+                        halign="center", size_hint_y=None, height=S(40))
+        title.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(title)
+        for line in ["Версия: 4.0", "Менеджер задач с голосовым помощником",
+                     "Платформа: " + PLATFORM.title(),
+                     "Задач: " + str(len(self.tasks)),
+                     "Категорий: " + str(len(self.categories))]:
+            lbl = MDLabel(text=line, font_style="Body2",
+                          theme_text_color="Primary",
+                          halign="center", size_hint_y=None, height=S(28))
+            lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            card.add_widget(lbl)
+        close_btn = MDRaisedButton(text="Закрыть", md_bg_color=C["accent"],
+                                   size_hint=(1,None), height=S(44), elevation=0)
+        close_btn.bind(on_release=lambda *_: mv.dismiss())
+        card.add_widget(close_btn)
+        mv.add_widget(card); mv.open()
+
     def _export(self,*_):
-        path=os.path.join(os.path.expanduser("~"),"flowdo_backup.json")
+        # На Android используем папку приложения (всегда доступна без доп. разрешений)
+        if PLATFORM == "android":
+            try:
+                from android.storage import app_storage_path
+                _base = app_storage_path()
+            except Exception:
+                _base = os.path.dirname(os.path.abspath(__file__))
+        else:
+            _base = os.path.expanduser("~")
+        path = os.path.join(_base, "flowdo_backup.json")
         try:
             with open(path,"w",encoding="utf-8") as f:
                 json.dump({"tasks":list(self.tasks.values()),
