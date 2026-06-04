@@ -5626,9 +5626,9 @@ class VoiceAssistant:
         try:
             if result_code == RESULT_OK and intent_obj:
                 from jnius import autoclass
-                SpeechRecognizer = autoclass("android.speech.SpeechRecognizer")
+                # RESULTS_RECOGNITION = "results_recognition" (constant string)
                 arr = intent_obj.getStringArrayListExtra(
-                    SpeechRecognizer.RESULTS_RECOGNITION)
+                    "results_recognition")
                 if arr and arr.size() > 0:
                     txt = str(arr.get(0))
                     Clock.schedule_once(lambda *_, t=txt: cb(t), 0)
@@ -5742,12 +5742,18 @@ class VoiceAssistant:
                 "messages": [{"role": "user", "content": text}]
             }).encode("utf-8")
 
+            _va_api_key = getattr(self.app, "_anthropic_api_key", "")
+            if not _va_api_key:
+                Clock.schedule_once(
+                    lambda *_: self.app._show_toast("Введите API ключ в Настройки → Голосовой помощник"), 0)
+                return
             req = urllib.request.Request(
                 "https://api.anthropic.com/v1/messages",
                 data=payload,
                 headers={
                     "Content-Type": "application/json",
                     "anthropic-version": "2023-06-01",
+                    "x-api-key": _va_api_key,
                 },
                 method="POST"
             )
@@ -7480,6 +7486,7 @@ class DailyTodoApp(MDApp):
         self._ring_pct   = 0.0
         self.weekly_goal = 80       # цель на неделю %
         self.mood_history = {}      # {"DD.MM.YYYY": 1-5}
+        self._anthropic_api_key = ""
         self._voice      = VoiceAssistant(self)
         self._cal_view_mode = "month"   # "month" | "day"
         self._search_query  = ""        # строка поиска задач
@@ -7775,9 +7782,11 @@ class DailyTodoApp(MDApp):
                                halign="center", size_hint_y=None, height=S(52))
         ci.add_widget(_lbl_tmp)
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-        self._w_quote=MDLabel(text=random.choice(MOTIVATIONS_F),
-                               font_style="Subtitle2", theme_text_color="Secondary",
-                               halign="center", size_hint_y=None, height=S(42))
+        _init_mot_text = random.choice(MOTIVATIONS_F)
+        self._w_quote=EmojiLabel(text=_init_mot_text,
+                               font_style="Subtitle2",
+                               halign="center", size_hint_y=None, height=S(42),
+                               theme_text_color="Secondary")
         ci.add_widget(self._w_quote)
         _lbl_tmp=MDLabel(text="Выберите стиль:", font_style="Caption",
                                theme_text_color="Secondary", size_hint_y=None, height=S(20),
@@ -7830,7 +7839,7 @@ class DailyTodoApp(MDApp):
         except Exception:
             pass
         if hasattr(self, "_w_quote"):
-            self._w_quote.text = random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F)
+            update_emoji_label(self._w_quote, random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F))
 
     def _welcome_go(self, *_):
         name=self._wf_name.text.strip()
@@ -8934,17 +8943,17 @@ class DailyTodoApp(MDApp):
                     md_bg_color=C["surf"], padding=[S(16),S(12)])
         va_c.bind(minimum_height=va_c.setter("height"))
         va_in=MDBoxLayout(orientation="vertical", adaptive_height=True, spacing=S(6))
-        vosk_status="\u2705 Vosk установлен (офлайн)" if VOSK_OK else "\u26a0 Vosk не установлен"
-        _tts_label_map = {"android": "\u2705 TTS: встроенный Android",
-                          "pyttsx3": "\u2705 TTS: pyttsx3 активен",
-                          "espeak":  "\u2705 TTS: espeak активен",
-                          "gtts":    "\u2705 TTS: gTTS активен (онлайн)"}
-        tts_status = _tts_label_map.get(_tts_mode, "\u26a0 TTS недоступен")
+        vosk_status="[OK] Vosk установлен (офлайн)" if VOSK_OK else "[!] Vosk не установлен"
+        _tts_label_map = {"android": "[OK] TTS: встроенный Android",
+                          "pyttsx3": "[OK] TTS: pyttsx3 активен",
+                          "espeak":  "[OK] TTS: espeak активен",
+                          "gtts":    "[OK] TTS: gTTS активен (онлайн)"}
+        tts_status = _tts_label_map.get(_tts_mode, "[!] TTS недоступен")
 
         # Строки статуса STT
         if PLATFORM == "android":
-            vosk_status = "\u2705 STT: встроенный Android (Google)" if ANDROID_STT_OK \
-                          else "\u26a0 STT: нет разрешения микрофона"
+            vosk_status = "[OK] STT: встроенный Android (Google)" if ANDROID_STT_OK \
+                          else "[!] STT: нет разрешения микрофона"
             _lbl_tmp=MDLabel(text=f"\U0001f4f1 Платформа: Android", font_style="Caption",
                              theme_text_color="Custom", text_color=C["accent"],
                              size_hint_y=None, height=S(20), halign="left", valign="middle")
@@ -8966,7 +8975,7 @@ class DailyTodoApp(MDApp):
                   (VOSK_OK or PLATFORM == "android")
 
         install_status_lbl = MDLabel(
-            text="" if _all_ok else "\u23f3 Нажмите кнопку для автоустановки",
+            text="" if _all_ok else "Нажмите кнопку для автоустановки",
             font_style="Caption",
             theme_text_color="Custom",
             text_color=C["text2"],
@@ -8992,7 +9001,7 @@ class DailyTodoApp(MDApp):
             va_in.add_widget(miss_lbl)
 
             install_btn = MDRaisedButton(
-                text="\u2b07 Установить компоненты автоматически",
+                text="Установить компоненты автоматически",
                 size_hint_y=None, height=S(42), elevation=0,
                 md_bg_color=C["surf2"])
             def _do_install(*_):
@@ -9010,15 +9019,40 @@ class DailyTodoApp(MDApp):
                     Clock.schedule_once(lambda *_: _on_install_done(), 0)
                 def _on_install_done():
                     if TTS_OK:
-                        install_status_lbl.text = "\u2705 Установлено! Перезапустите для проверки"
+                        install_status_lbl.text = "[OK] Установлено! Перезапустите для проверки"
                         install_btn.md_bg_color = C["green"]
                     else:
-                        install_status_lbl.text = "\u26a0 Не удалось установить. Проверьте интернет"
+                        install_status_lbl.text = "[!] Не удалось установить. Проверьте интернет"
                         install_btn.disabled = False
                 import threading as _thr
                 _thr.Thread(target=_install_thread, daemon=True).start()
             install_btn.bind(on_release=_do_install)
             va_in.add_widget(install_btn)
+
+        # ── Поле ввода Anthropic API ключа
+        _api_lbl=MDLabel(text="Anthropic API ключ (для AI-функций):",
+                         font_style="Caption", theme_text_color="Custom",
+                         text_color=C["text2"], size_hint_y=None, height=S(20),
+                         halign="left", valign="middle")
+        _api_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        va_in.add_widget(_api_lbl)
+        _api_field=MDTextField(
+            hint_text="sk-ant-...",
+            text=getattr(self,"_anthropic_api_key",""),
+            password=True,
+            size_hint_y=None, height=S(48),
+            mode="rectangle")
+        va_in.add_widget(_api_field)
+        _api_save_btn=MDRaisedButton(
+            text="Сохранить API ключ",
+            size_hint_y=None, height=S(38), elevation=0,
+            md_bg_color=C["surf2"])
+        def _save_api_key(*_):
+            self._anthropic_api_key = _api_field.text.strip()
+            self._save_config()
+            self._show_toast("АПИ ключ сохранён")
+        _api_save_btn.bind(on_release=_save_api_key)
+        va_in.add_widget(_api_save_btn)
 
         test_btn=MDRaisedButton(text="\U0001f3a4 Тест голосового помощника",
                                  size_hint_y=None, height=S(42), elevation=0,
@@ -9088,7 +9122,7 @@ class DailyTodoApp(MDApp):
         for ntxt,nstate in [("Напоминания",True),("Звук",True),("Вибрация",False)]:
             ni.add_widget(self._notif_row(ntxt, nstate))
         plyer_lbl=MDLabel(
-            text="\u2705 plyer активен" if PLYER_OK else "\u26a0 pip install plyer",
+            text="[OK] plyer активен" if PLYER_OK else "[!] pip install plyer",
             font_style="Caption", theme_text_color="Secondary",
             size_hint_y=None, height=S(20), padding=[S(16),0])
         ni.add_widget(plyer_lbl); notif_c.add_widget(ni); inn.add_widget(notif_c)
@@ -9912,6 +9946,11 @@ class DailyTodoApp(MDApp):
             # "Все" всегда валидна; пользовательские — проверяем
             if saved_cat == "Все" or saved_cat in self.categories:
                 self.cur_cat = saved_cat
+        # Загружаем API ключ
+        if self.cfg_store.exists("api_key"):
+            self._anthropic_api_key = self.cfg_store.get("api_key").get("value","")
+        else:
+            self._anthropic_api_key = ""
 
     def _save_config(self):
         self.cfg_store.put("profile",    name=self.user_name, emoji=self.user_emoji)
@@ -9920,6 +9959,7 @@ class DailyTodoApp(MDApp):
         self.cfg_store.put("weekly_goal",value=self.weekly_goal)
         self.cfg_store.put("cat_emoji",  map=dict(CAT_EMOJI))
         self.cfg_store.put("cur_cat",    name=self.cur_cat)
+        self.cfg_store.put("api_key",    value=getattr(self,"_anthropic_api_key",""))
 
     # stat_lbl placeholder
     @property
