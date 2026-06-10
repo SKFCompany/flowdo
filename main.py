@@ -5737,23 +5737,21 @@ class TaskFormScreen(MDScreen):
         inn=MDBoxLayout(orientation="vertical", adaptive_height=True,
                         spacing=S(0), padding=[S(16),S(14),S(16),S(30)])
         # ── Заголовок + AI кнопка + автоподсказки ────────────────────────────
-        title_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                                height=S(54), spacing=S(8))
+        # Поле названия задачи
         self.tf_title = MDTextField(hint_text="Что нужно сделать?",
                                     text=td.get("title",""),
                                     size_hint_x=1, size_hint_y=None, height=S(54))
         inn.add_widget(Widget(size_hint_y=None, height=S(4)))
+        inn.add_widget(self.tf_title)
+        inn.add_widget(Widget(size_hint_y=None, height=S(8)))
 
-        # ── Теги ──────────────────────────────────────────────────────────
-        inn.add_widget(self._lbl("Теги"))
-        tags_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                               height=S(48), spacing=S(8))
+        # ── Теги (необязательно) ──────────────────────────────────────────
+        inn.add_widget(self._lbl("Теги (необязательно)"))
         self._tf_tags = MDTextField(
             hint_text="#работа #срочно #важно",
-            text=" ".join(td.get("tags", [])),
+            text=" ".join(["#"+t for t in td.get("tags", [])]),
             size_hint_x=1, size_hint_y=None, height=S(48))
-        tags_row.add_widget(self._tf_tags)
-        inn.add_widget(tags_row)
+        inn.add_widget(self._tf_tags)
 
         # Популярные теги — быстрый выбор
         _all_tags = set()
@@ -5764,14 +5762,15 @@ class TaskFormScreen(MDScreen):
             tags_quick = MDBoxLayout(orientation="horizontal", size_hint_x=None,
                                      spacing=S(6), padding=[0, S(2)])
             tags_quick.bind(minimum_width=tags_quick.setter("width"))
-            for tag in sorted(_all_tags)[:10]:
-                tb = MDRaisedButton(text=tag, elevation=0, size_hint_x=None,
-                                    width=S(len(tag)*9+24), size_hint_y=None,
-                                    height=S(28), md_bg_color=C["surf2"])
+            for tag in sorted(_all_tags)[:8]:
+                tb = MDRaisedButton(text="#"+tag, elevation=0, size_hint_x=None,
+                                    width=S(len(tag)*8+32), size_hint_y=None,
+                                    height=S(26), md_bg_color=C["surf2"])
                 def _add_tag(_, t=tag):
                     cur = self._tf_tags.text.strip()
-                    if t not in cur:
-                        self._tf_tags.text = (cur + " " + t).strip()
+                    htag = "#" + t
+                    if htag not in cur:
+                        self._tf_tags.text = (cur + " " + htag).strip()
                 tb.bind(on_release=_add_tag)
                 tags_quick.add_widget(tb)
             tags_sv.add_widget(tags_quick)
@@ -6478,13 +6477,14 @@ class PomodoroScreen(MDScreen):
         root.add_widget(top)
 
         # ── Сессии ───────────────────────────────────────────────────────
+        root.add_widget(Widget(size_hint_y=None, height=S(16)))
         self._sess_box = MDBoxLayout(orientation="horizontal", size_hint_y=None,
                                      height=S(20), spacing=S(6),
                                      pos_hint={"center_x":0.5})
         root.add_widget(self._sess_box)
         self._update_session_dots()
 
-        root.add_widget(Widget(size_hint_y=None, height=S(24)))
+        root.add_widget(Widget(size_hint_y=None, height=S(8)))
 
         # ── Кольцо таймера ───────────────────────────────────────────────
         from kivy.uix.widget import Widget as KWidget
@@ -6669,23 +6669,49 @@ class PomodoroScreen(MDScreen):
 
     def _pick_task(self, *_):
         """Показывает список задач для выбора."""
-        from kivymd.uix.dialog import MDDialog
-        from kivymd.uix.list import OneLineListItem
+        from kivy.uix.modalview import ModalView
+        from kivy.uix.scrollview import ScrollView
         tasks = [t for t in self._app.tasks.values() if not t.get("done")]
         if not tasks:
             self._app._show_toast("Нет активных задач")
             return
-        items = []
-        for t in tasks[:15]:
-            item = OneLineListItem(text=t["title"][:50])
-            def _sel(x, tid=t["id"], tname=t["title"]):
-                self._task_id = tid
-                self._task_lbl.text = tname[:40]
-                dlg.dismiss()
-            item.bind(on_release=_sel)
-            items.append(item)
-        dlg = MDDialog(title="Выберите задачу", type="simple", items=items)
-        dlg.open()
+        mv = ModalView(background_color=(0,0,0,0.6), auto_dismiss=True,
+                       size_hint=(0.9, 0.7),
+                       pos_hint={"center_x":0.5,"center_y":0.5})
+        card = MDCard(orientation="vertical", size_hint=(1,1),
+                      radius=[S(16)], elevation=8,
+                      md_bg_color=C["surf"], padding=[S(12),S(12)])
+        hdr = MDLabel(text="Выберите задачу", font_style="H6", bold=True,
+                      theme_text_color="Custom", text_color=C["text"],
+                      halign="center", size_hint_y=None, height=S(40))
+        hdr.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(hdr)
+        sv = ScrollView()
+        lst = MDBoxLayout(orientation="vertical", adaptive_height=True, spacing=S(4))
+        for t in tasks[:20]:
+            row = MDCard(size_hint_y=None, height=S(52), radius=[S(8)],
+                         elevation=0, md_bg_color=C["surf2"],
+                         padding=[S(12),S(8)])
+            lbl = MDLabel(text=t["title"][:55], font_style="Body2",
+                          theme_text_color="Primary",
+                          halign="left", valign="middle")
+            lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            row.add_widget(lbl)
+            def _sel(w, touch, tid=t["id"], tname=t["title"]):
+                if w.collide_point(*touch.pos):
+                    self._task_id = tid
+                    self._task_lbl.text = tname[:40]
+                    mv.dismiss()
+                    return True
+            row.bind(on_touch_up=_sel)
+            lst.add_widget(row)
+        sv.add_widget(lst); card.add_widget(sv)
+        cancel = MDRaisedButton(text="Отмена", elevation=0,
+                                 md_bg_color=C["surf2"],
+                                 size_hint_y=None, height=S(40))
+        cancel.bind(on_release=lambda *_: mv.dismiss())
+        card.add_widget(cancel)
+        mv.add_widget(card); mv.open()
 
     @staticmethod
     def _fmt(secs):
@@ -6791,22 +6817,21 @@ class DailyTodoApp(MDApp):
                       radius=[S(18)], elevation=10,
                       md_bg_color=C["surf"], padding=[S(22),S(18)], spacing=S(10))
         tips = [
-            ("Свайп вправо", "Отметить задачу выполненной"),
-            ("Свайп влево", "Удалить задачу"),
-            ("Долгий тап на +", "Быстрое добавление задачи"),
-            ("Меню '...'", "Детали, редактирование, Pomodoro"),
+            ("Свайп вправо →", "Выполнено"),
+            ("Свайп влево ←", "Удалить"),
+            ("Долгий тап на +", "Быстрое добавление"),
+            ("Меню '...'", "Детали / Pomodoro"),
         ]
         for title, desc in tips:
-            row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                              height=S(30), spacing=S(10))
-            t_lbl = MDLabel(text=title, font_style="Body2", bold=True,
-                            theme_text_color="Custom", text_color=C["accent"],
-                            size_hint_x=None, width=S(140), halign="left")
+            row = MDBoxLayout(orientation="vertical", size_hint_y=None,
+                              height=S(44), spacing=S(2),
+                              padding=[0, S(4)])
+            t_lbl = MDLabel(text=title + "  —  " + desc,
+                            font_style="Body2",
+                            theme_text_color="Custom", text_color=C["text"],
+                            halign="left", size_hint_y=None, height=S(36))
             t_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-            d_lbl = MDLabel(text=desc, font_style="Caption",
-                            theme_text_color="Secondary", halign="left")
-            d_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-            row.add_widget(t_lbl); row.add_widget(d_lbl)
+            row.add_widget(t_lbl)
             card.add_widget(row)
         ok_btn = MDRaisedButton(text="Понятно!", md_bg_color=C["accent"],
                                  size_hint_y=None, height=S(40), elevation=0)
@@ -8218,7 +8243,7 @@ class DailyTodoApp(MDApp):
         di=MDBoxLayout(orientation="vertical", adaptive_height=True)
         for dtxt,dico,dcb in [
             ("Резервная копия","content-save-outline",self._backup_restore),
-            ("Экспорт задач","upload-outline",self._export),
+            ("Экспорт задач","upload-outline",self._backup_restore),
             ("О приложении","information-outline",self._show_about)]:
             di.add_widget(self._sett_row(dico,dtxt,dcb))
         data_c.add_widget(di); inn.add_widget(data_c)
@@ -8990,8 +9015,17 @@ class DailyTodoApp(MDApp):
     def _quick_add_sheet(self):
         """Быстрое добавление задачи — всплывающий лист снизу."""
         from kivy.uix.modalview import ModalView
+        # На Android поднимаем окно при появлении клавиатуры
+        if PLATFORM == "android":
+            try:
+                from android.runnable import run_on_ui_thread
+                from jnius import autoclass
+                activity = autoclass("org.kivy.android.PythonActivity").mActivity
+                activity.getWindow().setSoftInputMode(0x10 | 0x20)  # ADJUST_RESIZE
+            except Exception:
+                pass
         mv = ModalView(background_color=(0,0,0,0.5), auto_dismiss=True,
-                       size_hint=(1, None), height=S(240),
+                       size_hint=(1, None), height=S(280),
                        pos_hint={"x":0, "y":0})
         card = MDCard(orientation="vertical", size_hint=(1,1),
                       radius=[S(20),S(20),0,0], elevation=12,
@@ -9058,8 +9092,79 @@ class DailyTodoApp(MDApp):
         Clock.schedule_once(lambda *_: setattr(tf, "focus", True), 0.2)
 
     def _backup_restore(self, *_):
-        """Резервная копия — сохраняет JSON с данными."""
-        self._export()
+        """Резервная копия — диалог сохранения и загрузки."""
+        from kivy.uix.modalview import ModalView
+        mv = ModalView(background_color=(0,0,0,0.6), auto_dismiss=True,
+                       size_hint=(0.88, None), height=S(260),
+                       pos_hint={"center_x":0.5,"center_y":0.5})
+        card = MDCard(orientation="vertical", size_hint=(1,1),
+                      radius=[S(16)], elevation=8,
+                      md_bg_color=C["surf"], padding=[S(20),S(16)], spacing=S(12))
+        title_lbl = MDLabel(text="Резервная копия", font_style="H6", bold=True,
+                            theme_text_color="Custom", text_color=C["text"],
+                            halign="center", size_hint_y=None, height=S(36))
+        title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(title_lbl)
+        self._backup_status = MDLabel(text="", font_style="Caption",
+                                       theme_text_color="Secondary",
+                                       halign="center", size_hint_y=None, height=S(32))
+        self._backup_status.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(self._backup_status)
+        save_btn = MDRaisedButton(text="Сохранить бэкап",
+                                   md_bg_color=C["accent"], elevation=0,
+                                   size_hint_y=None, height=S(44))
+        def _do_save(*_):
+            self._export()
+            mv.dismiss()
+        save_btn.bind(on_release=_do_save)
+        card.add_widget(save_btn)
+        load_btn = MDRaisedButton(text="Загрузить бэкап",
+                                   md_bg_color=C["surf2"], elevation=0,
+                                   size_hint_y=None, height=S(44))
+        load_btn.bind(on_release=lambda *_: self._import_backup(mv))
+        card.add_widget(load_btn)
+        close_btn = MDRaisedButton(text="Закрыть", elevation=0,
+                                    md_bg_color=C["surf2"],
+                                    size_hint_y=None, height=S(36))
+        close_btn.bind(on_release=lambda *_: mv.dismiss())
+        card.add_widget(close_btn)
+        mv.add_widget(card); mv.open()
+
+    def _import_backup(self, parent_mv=None):
+        """Загружает бэкап из файла."""
+        if PLATFORM == "android":
+            try:
+                from android.storage import app_storage_path
+                _base = app_storage_path()
+            except Exception:
+                _base = os.path.dirname(os.path.abspath(__file__))
+        else:
+            _base = os.path.expanduser("~")
+        path = os.path.join(_base, "flowdo_backup.json")
+        if not os.path.exists(path):
+            self._show_toast(f"Файл не найден: {path}")
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if "tasks" in data:
+                restored = {}
+                for t in data["tasks"]:
+                    if "id" in t:
+                        restored[t["id"]] = t
+                self.tasks = restored
+                self.save_tasks()
+            if "categories" in data:
+                self.categories = data["categories"]
+            if "profile" in data:
+                self.user_name = data["profile"].get("name", self.user_name)
+            self._save_config()
+            self.refresh_task_list()
+            if parent_mv:
+                parent_mv.dismiss()
+            self._show_toast(f"Загружено {len(self.tasks)} задач!")
+        except Exception as e:
+            self._show_toast(f"Ошибка загрузки: {e}")
 
     def _show_about(self, *_):
         from kivy.uix.modalview import ModalView
