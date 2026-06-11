@@ -5621,39 +5621,49 @@ class TaskCard(MDCard):
     # ── Свайп-жесты ──────────────────────────────────────────────────────────
     def on_touch_down(self, touch):
         if self.collide_point(*touch.pos):
-            touch.ud[f"swipe_{id(self)}"] = {"sx": touch.x, "sy": touch.y, "moved": False}
+            self.x_orig = self.x  # обновляем при каждом касании
+            touch.ud[f"swipe_{id(self)}"] = {
+                "sx": touch.x, "sy": touch.y,
+                "dx": 0, "moved": False, "owner": True
+            }
         return super().on_touch_down(touch)
 
     def on_touch_move(self, touch):
         key = f"swipe_{id(self)}"
-        if key in touch.ud and self.collide_point(*touch.pos):
+        if key in touch.ud and touch.ud[key].get("owner"):
             dx = touch.x - touch.ud[key]["sx"]
             dy = touch.y - touch.ud[key]["sy"]
-            if abs(dx) > 10:
+            touch.ud[key]["dx"] = dx
+            if abs(dx) > 8:
                 touch.ud[key]["moved"] = True
-            # Визуальный сдвиг карточки
-            if abs(dx) > abs(dy) * 0.8:
-                self.x = self.x_orig + dx * 0.4 if hasattr(self, "x_orig") else self.x
+            # Визуальный сдвиг только по горизонтали
+            if abs(dx) > abs(dy):
+                self.x = self.x_orig + dx * 0.45
+                # Окраска подсказки
+                if dx > 30:
+                    self.md_bg_color = (*C.get("green",(0.3,0.8,0.4,1))[:3], 0.3)
+                elif dx < -30:
+                    self.md_bg_color = (*C.get("red",(0.9,0.3,0.3,1))[:3], 0.3)
+                else:
+                    self.md_bg_color = C["surf"]
         return super().on_touch_move(touch)
 
     def on_touch_up(self, touch):
         key = f"swipe_{id(self)}"
-        if key in touch.ud:
-            dx = touch.x - touch.ud[key]["sx"]
+        if key in touch.ud and touch.ud[key].get("owner"):
+            dx = touch.ud[key]["dx"]
             dy = touch.y - touch.ud[key]["sy"]
             moved = touch.ud[key].get("moved", False)
-            # Сброс позиции
-            anim = Animation(x=self.x_orig if hasattr(self, "x_orig") else self.x,
-                             duration=0.15, t="out_quad")
+            # Сброс цвета и позиции
+            self.md_bg_color = C["surf"]
+            anim = Animation(x=self.x_orig, duration=0.12, t="out_quad")
             anim.start(self)
-            if moved and abs(dx) > abs(dy):
+            if moved and abs(dx) > abs(dy) * 0.7:
                 if dx > self.SWIPE_THRESHOLD:
-                    # Свайп вправо — выполнить / снять выполнение
-                    Clock.schedule_once(lambda *_: self._toggle_done_swipe(), 0.1)
+                    Clock.schedule_once(lambda *_: self._toggle_done_swipe(), 0.12)
                     return True
                 elif dx < -self.SWIPE_THRESHOLD:
-                    # Свайп влево — удалить
-                    Clock.schedule_once(lambda *_: self._confirm_delete_swipe(), 0.1)
+                    Clock.schedule_once(lambda *_: self._confirm_delete_swipe(), 0.12)
                     return True
         return super().on_touch_up(touch)
 
@@ -5664,13 +5674,20 @@ class TaskCard(MDCard):
     def _toggle_done_swipe(self):
         task = self.app.tasks.get(self.task_id)
         if not task: return
-        task["done"] = not task.get("done", False)
+        # Свайп вправо = всегда отметить ВЫПОЛНЕНО
+        was_done = task.get("done", False)
+        task["done"] = True
         self.app.save_tasks()
-        if task["done"]:
-            self._animate_done()
-        self.app.refresh_task_list()
-        msg = "Выполнено!" if task["done"] else "Отмечено как невыполненное"
-        self.app._show_toast(msg)
+        self._animate_done()
+        if was_done:
+            # Уже было выполнено — снимаем выполнение
+            task["done"] = False
+            self.app.save_tasks()
+            Clock.schedule_once(lambda *_: self.app.refresh_task_list(), 0.2)
+            self.app._show_toast("Отмечено как невыполненное")
+        else:
+            Clock.schedule_once(lambda *_: self.app.refresh_task_list(), 0.4)
+            self.app._show_toast("Выполнено!")
 
     def _animate_done(self):
         """Анимация выполнения — мигание зелёным."""
@@ -5948,7 +5965,7 @@ class TaskFormScreen(MDScreen):
                            padding=[S(12),S(8),S(12),S(8)], spacing=S(10))
         back2=MDCard(size_hint_x=0.4, size_hint_y=None, height=S(44),
                      radius=[S(8)], elevation=0, md_bg_color=C["surf2"])
-        back2_lbl=MDLabel(text="← Назад", halign="center", valign="middle",
+        back2_lbl=MDLabel(text="< Назад", halign="center", valign="middle",
                           theme_text_color="Custom", text_color=C["text"],
                           size_hint=(1,1))
         back2_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -6465,7 +6482,7 @@ class PomodoroScreen(MDScreen):
                            md_bg_color=C["bg"], padding=[S(20), S(24)])
         # ── Шапка ────────────────────────────────────────────────────────
         top = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(48))
-        back = MDRaisedButton(text="← Назад", size_hint_x=None, width=S(100),
+        back = MDRaisedButton(text="< Назад", size_hint_x=None, width=S(100),
                               elevation=0, md_bg_color=C["surf2"])
         back.bind(on_release=lambda *_: self._app._nav_switch("tasks"))
         self._mode_lbl = MDLabel(text="ФОКУС", font_style="Caption", bold=True,
@@ -6480,7 +6497,7 @@ class PomodoroScreen(MDScreen):
         root.add_widget(Widget(size_hint_y=None, height=S(16)))
         self._sess_box = MDBoxLayout(orientation="horizontal", size_hint_y=None,
                                      height=S(20), spacing=S(6),
-                                     pos_hint={"center_x":0.5})
+                                     padding=[S(16),0])
         root.add_widget(self._sess_box)
         self._update_session_dots()
 
@@ -6657,15 +6674,18 @@ class PomodoroScreen(MDScreen):
 
     def _update_session_dots(self):
         self._sess_box.clear_widgets()
+        from kivy.graphics import Color as _DC, RoundedRectangle as _DR
         for i in range(4):
-            dot = MDLabel(
-                text="●" if i < (self._sessions % 4) else "○",
-                font_style="H6", halign="center",
-                theme_text_color="Custom",
-                text_color=C["accent"] if i < (self._sessions % 4) else C["text2"],
-                size_hint_x=None, width=S(28), size_hint_y=None, height=S(20))
-            dot.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-            self._sess_box.add_widget(dot)
+            dot_w = Widget(size_hint_x=None, width=S(16), size_hint_y=None, height=S(16))
+            _active = i < (self._sessions % 4)
+            _dcol = C["accent"] if _active else C["surf2"]
+            with dot_w.canvas:
+                _DC(*_dcol)
+                _dr = _DR(pos=dot_w.pos, size=dot_w.size, radius=[S(8)])
+            def _upd(w, *_, r=_dr):
+                r.pos = (w.x, w.y); r.size = (w.width, w.height)
+            dot_w.bind(pos=_upd, size=_upd)
+            self._sess_box.add_widget(dot_w)
 
     def _pick_task(self, *_):
         """Показывает список задач для выбора."""
@@ -9015,18 +9035,31 @@ class DailyTodoApp(MDApp):
     def _quick_add_sheet(self):
         """Быстрое добавление задачи — всплывающий лист снизу."""
         from kivy.uix.modalview import ModalView
-        # На Android поднимаем окно при появлении клавиатуры
-        if PLATFORM == "android":
-            try:
-                from android.runnable import run_on_ui_thread
-                from jnius import autoclass
-                activity = autoclass("org.kivy.android.PythonActivity").mActivity
-                activity.getWindow().setSoftInputMode(0x10 | 0x20)  # ADJUST_RESIZE
-            except Exception:
-                pass
+        from kivy.core.window import Window
+        # Поднимаем контент при появлении клавиатуры
+        _orig_softinput = Window.softinput_mode
+        Window.softinput_mode = "below_target"
+        from kivy.core.window import Window as _Win
+        def _calc_height():
+            return max(S(260), S(300))
+
         mv = ModalView(background_color=(0,0,0,0.5), auto_dismiss=True,
-                       size_hint=(1, None), height=S(280),
+                       size_hint=(1, None), height=_calc_height(),
                        pos_hint={"x":0, "y":0})
+
+        def _on_keyboard_height(win, kb_h):
+            # Сдвигаем модальное окно вверх на высоту клавиатуры
+            if kb_h > 0:
+                mv.pos_hint = {"x":0, "y": kb_h / _Win.height}
+                mv.height = _calc_height()
+            else:
+                mv.pos_hint = {"x":0, "y":0}
+        _Win.bind(keyboard_height=_on_keyboard_height)
+
+        def _on_dismiss(*_):
+            Window.softinput_mode = _orig_softinput
+            _Win.unbind(keyboard_height=_on_keyboard_height)
+        mv.bind(on_dismiss=_on_dismiss)
         card = MDCard(orientation="vertical", size_hint=(1,1),
                       radius=[S(20),S(20),0,0], elevation=12,
                       md_bg_color=C["surf"], padding=[S(20),S(16)])
