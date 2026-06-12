@@ -17,7 +17,8 @@ android.build_tools_version = 34.0.0
 android.sdk_path = /usr/local/lib/android/sdk
 android.ndk_path = /usr/local/lib/android/sdk/ndk/27.3.13750724
 orientation = portrait
-android.permissions = WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE
+android.add_resources = res
+android.manifestmodifications = android_manifest_mod.xml
 
 # Для отправки файлов через "Поделиться" нужен FileProvider
 android.add_xml = res/xml/file_provider_paths.xml
