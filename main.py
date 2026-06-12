@@ -5325,6 +5325,7 @@ class TaskCard(MDCard):
         cb = MDIconButton(icon=ico, size_hint_x=None, width=S(34),
                           theme_text_color="Custom", text_color=col)
         cb.bind(on_release=self._toggle); row.add_widget(cb)
+        self._cb_icon = cb
 
         # текст
         txt_col = C["text2"] if self.done else C["text"]
@@ -5333,6 +5334,7 @@ class TaskCard(MDCard):
                             theme_text_color="Custom", text_color=txt_col,
                             halign="left", valign="middle",
                             shorten=True, shorten_from="right")
+        self._title_lbl = title_lbl
         title_lbl.bind(size=lambda w,s: setattr(w, "text_size", (s[0], None)))
         ti.add_widget(title_lbl)
         sub_parts = []
@@ -5676,20 +5678,34 @@ class TaskCard(MDCard):
     def _toggle_done_swipe(self):
         task = self.app.tasks.get(self.task_id)
         if not task: return
-        # Свайп вправо = всегда отметить ВЫПОЛНЕНО
-        was_done = task.get("done", False)
-        task["done"] = True
+        # Свайп вправо = переключить выполнено / не выполнено
+        new_done = not task.get("done", False)
+        task["done"] = new_done
+        self.done = new_done
         self.app.save_tasks()
-        self._animate_done()
-        if was_done:
-            # Уже было выполнено — снимаем выполнение
-            task["done"] = False
-            self.app.save_tasks()
-            Clock.schedule_once(lambda *_: self.app.refresh_task_list(), 0.2)
-            self.app._show_toast("Отмечено как невыполненное")
-        else:
-            Clock.schedule_once(lambda *_: self.app.refresh_task_list(), 0.4)
+        self._update_checkbox_visual()
+        if new_done:
+            self._animate_done()
             self.app._show_toast("Выполнено!")
+        else:
+            self.app._show_toast("Отмечено как невыполненное")
+        Clock.schedule_once(lambda *_: self.app.refresh_task_list(), 0.45)
+
+    def _update_checkbox_visual(self):
+        """Мгновенно обновляет иконку чекбокса и стиль заголовка."""
+        is_fem = self._fem()
+        if hasattr(self, "_cb_icon"):
+            self._cb_icon.icon = ("check-circle" if self.done
+                                   else ("radiobox-blank" if is_fem else "checkbox-blank-outline"))
+            self._cb_icon.text_color = C["green"] if self.done else C["text2"]
+        if hasattr(self, "_title_lbl"):
+            self._title_lbl.text_color = C["text2"] if self.done else C["text"]
+            self._title_lbl.font_style = "Body1"
+            try:
+                self._title_lbl.text = (f"[s]{self.title}[/s]" if self.done else self.title)
+                self._title_lbl.markup = True
+            except Exception:
+                pass
 
     def _animate_done(self):
         """Анимация выполнения — мигание зелёным."""
@@ -6839,8 +6855,8 @@ class DailyTodoApp(MDApp):
                       radius=[S(18)], elevation=10,
                       md_bg_color=C["surf"], padding=[S(22),S(18)], spacing=S(10))
         tips = [
-            ("Свайп вправо →", "Выполнено"),
-            ("Свайп влево ←", "Удалить"),
+            ("Свайп вправо >>", "Выполнено"),
+            ("Свайп влево <<", "Удалить"),
             ("Долгий тап на +", "Быстрое добавление"),
             ("Меню '...'", "Детали / Pomodoro"),
         ]
