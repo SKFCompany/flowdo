@@ -9387,16 +9387,20 @@ class DailyTodoApp(MDApp):
 
         if PLATFORM == "android":
             try:
-                from jnius import autoclass
+                from jnius import autoclass, cast
                 Intent = autoclass("android.content.Intent")
+                String = autoclass("java.lang.String")
                 PythonActivity = autoclass("org.kivy.android.PythonActivity")
                 ctx = PythonActivity.mActivity
 
                 intent = Intent(Intent.ACTION_SEND)
                 intent.setType("text/plain")
-                intent.putExtra(Intent.EXTRA_SUBJECT, "Задача из Flow\u00b7Do")
-                intent.putExtra(Intent.EXTRA_TEXT, share_text)
-                chooser = Intent.createChooser(intent, "Поделиться задачей")
+                intent.putExtra(Intent.EXTRA_SUBJECT,
+                                cast("java.lang.CharSequence", String("Задача из Flow\u00b7Do")))
+                intent.putExtra(Intent.EXTRA_TEXT,
+                                cast("java.lang.CharSequence", String(share_text)))
+                title_cs = cast("java.lang.CharSequence", String("Поделиться задачей"))
+                chooser = Intent.createChooser(intent, title_cs)
                 ctx.startActivity(chooser)
             except Exception as e:
                 self._show_toast(f"Не удалось открыть меню \"Поделиться\": {e}")
