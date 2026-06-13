@@ -5771,13 +5771,59 @@ class TaskFormScreen(MDScreen):
                      bar_width=S(3), scroll_type=['bars','content'])
         inn=MDBoxLayout(orientation="vertical", adaptive_height=True,
                         spacing=S(0), padding=[S(16),S(14),S(16),S(30)])
-        # ── Заголовок + AI кнопка + автоподсказки ────────────────────────────
-        # Поле названия задачи
+        # ── Заголовок + автоподсказки из истории задач ──────────────────────
         self.tf_title = MDTextField(hint_text="Что нужно сделать?",
                                     text=td.get("title",""),
                                     size_hint_x=1, size_hint_y=None, height=S(54))
         inn.add_widget(Widget(size_hint_y=None, height=S(4)))
         inn.add_widget(self.tf_title)
+
+        # Контейнер для подсказок (заполняется динамически при вводе)
+        self._suggest_box = MDBoxLayout(orientation="vertical", size_hint_y=None,
+                                         height=0, spacing=S(2))
+        inn.add_widget(self._suggest_box)
+
+        # Список уникальных названий ранее созданных задач (без текущей)
+        _hist_titles = []
+        _seen_lower = set()
+        for t in self._app.tasks.values():
+            tt = t.get("title","").strip()
+            if tt and t.get("id") != td.get("id") and tt.lower() not in _seen_lower:
+                _seen_lower.add(tt.lower())
+                _hist_titles.append(tt)
+
+        def _update_suggestions(instance, value):
+            self._suggest_box.clear_widgets()
+            q = value.strip().lower()
+            if not q or len(q) < 2:
+                self._suggest_box.height = 0
+                return
+            matches = [t for t in _hist_titles
+                       if q in t.lower() and t.lower() != q][:4]
+            if not matches:
+                self._suggest_box.height = 0
+                return
+            for m in matches:
+                row = MDCard(size_hint_y=None, height=S(34), radius=[S(8)],
+                             elevation=0, md_bg_color=C["surf2"],
+                             padding=[S(10),S(4)])
+                lbl = MDLabel(text=m, font_style="Body2",
+                              theme_text_color="Secondary",
+                              halign="left", valign="middle",
+                              shorten=True, shorten_from="right")
+                lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+                row.add_widget(lbl)
+                def _pick(w, touch, title=m):
+                    if w.collide_point(*touch.pos):
+                        self.tf_title.text = title
+                        self._suggest_box.clear_widgets()
+                        self._suggest_box.height = 0
+                        return True
+                row.bind(on_touch_up=_pick)
+                self._suggest_box.add_widget(row)
+            self._suggest_box.height = S(36) * len(matches) + S(2) * (len(matches)-1)
+
+        self.tf_title.bind(text=_update_suggestions)
         inn.add_widget(Widget(size_hint_y=None, height=S(8)))
 
         # ── Теги (необязательно) ──────────────────────────────────────────
@@ -9225,14 +9271,16 @@ class DailyTodoApp(MDApp):
         if PLATFORM == "android":
             try:
                 from android import activity as _android_activity
-                from jnius import autoclass
+                from jnius import autoclass, cast
                 Intent = autoclass("android.content.Intent")
+                String = autoclass("java.lang.String")
                 PythonActivity = autoclass("org.kivy.android.PythonActivity")
 
                 intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
                 intent.setType("application/json")
-                intent.putExtra(Intent.EXTRA_TITLE, fname)
+                intent.putExtra(Intent.EXTRA_TITLE,
+                                cast("java.lang.CharSequence", String(fname)))
 
                 REQ_CODE = 7422
                 def _on_result(request_code, result_code, intent_data):
