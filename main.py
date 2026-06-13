@@ -6229,9 +6229,12 @@ class TaskFormScreen(MDScreen):
 
     def _show_picker(self, title, opts, cur, lbl, setter):
         from kivy.uix.modalview import ModalView
-        mv=ModalView(background_color=(0,0,0,0.5), auto_dismiss=True, size_hint=(0.88,None))
-        card=MDCard(orientation="vertical", size_hint_y=None,
-                    height=S(len(opts)*52+20), radius=[S(16)], elevation=6,
+        card_h = S(len(opts)*52+20)
+        mv=ModalView(background_color=(0,0,0,0.5), auto_dismiss=True,
+                     size_hint=(0.88,None), height=card_h,
+                     pos_hint={"center_x":0.5,"center_y":0.5})
+        card=MDCard(orientation="vertical", size_hint=(1,1),
+                    radius=[S(16)], elevation=6,
                     md_bg_color=C["surf"], padding=[S(6),S(8)])
         for opt in opts:
             row=MDBoxLayout(size_hint_y=None, height=S(50), padding=[S(16),0])
@@ -6853,6 +6856,12 @@ class DailyTodoApp(MDApp):
         # планировщик повторяющихся задач
         Clock.schedule_interval(self._check_repeating_tasks, 3600)
         Clock.schedule_once(self._check_repeating_tasks, 5)
+        # планировщик напоминаний — проверка каждую минуту
+        self._notified_keys = set()
+        if self.cfg_store.exists("notified_keys"):
+            self._notified_keys = set(self.cfg_store.get("notified_keys").get("list", []))
+        Clock.schedule_interval(self._check_reminders, 30)
+        Clock.schedule_once(self._check_reminders, 3)
         return self.sm
 
     def _apply_md_style(self):
@@ -6869,6 +6878,67 @@ class DailyTodoApp(MDApp):
                                     app_name="FlowDo", timeout=5)
             except Exception:
                 pass
+
+    # ── Напоминания / уведомления по времени задачи ─────────────────────────
+    # Сопоставление текста напоминания со смещением в минутах ДО времени задачи
+    _REMIND_OFFSETS = {
+        "За 10 минут": 10,
+        "За 30 минут": 30,
+        "За 1 час": 60,
+        "За 1 день": 60*24,
+    }
+
+    def _check_reminders(self, *_):
+        """Проверяет все задачи раз в 30 секунд: если наступило время самой
+        задачи или время напоминания — отправляет push-уведомление."""
+        from datetime import datetime as _dt, timedelta as _td
+        now = _dt.now()
+        changed = False
+        for t in self.tasks.values():
+            if t.get("done"):
+                continue
+            date_s = t.get("date","")
+            time_s = t.get("time","")
+            if not date_s or not time_s:
+                continue
+            try:
+                task_dt = _dt.strptime(f"{date_s} {time_s}", "%d.%m.%Y %H:%M")
+            except Exception:
+                continue
+
+            tid = t.get("id","")
+            title = t.get("title","Задача")
+
+            # 1) Уведомление в момент самого времени задачи
+            key_time = f"{tid}:time:{date_s}_{time_s}"
+            if key_time not in self._notified_keys:
+                # окно срабатывания: от момента до 2 минут после (т.к. проверка раз в 30с)
+                if task_dt <= now <= task_dt + _td(minutes=2):
+                    self._send_notification(f"Время задачи: {title}", "Flow·Do — Задача")
+                    self._notified_keys.add(key_time)
+                    changed = True
+
+            # 2) Уведомление-напоминание заранее
+            remind_s = t.get("reminder","")
+            offset = self._REMIND_OFFSETS.get(remind_s)
+            if offset:
+                remind_dt = task_dt - _td(minutes=offset)
+                key_remind = f"{tid}:remind:{date_s}_{time_s}_{remind_s}"
+                if key_remind not in self._notified_keys:
+                    if remind_dt <= now <= remind_dt + _td(minutes=2):
+                        self._send_notification(
+                            f"Напоминание: {title} ({remind_s.lower()})",
+                            "Flow·Do — Напоминание")
+                        self._notified_keys.add(key_remind)
+                        changed = True
+
+        if changed:
+            # сохраняем, чтобы не дублировать уведомления после перезапуска
+            self.cfg_store.put("notified_keys", list=list(self._notified_keys))
+            # подчищаем старые ключи (старше 7 дней) чтобы список не рос бесконечно
+            if len(self._notified_keys) > 500:
+                self._notified_keys = set(list(self._notified_keys)[-300:])
+                self.cfg_store.put("notified_keys", list=list(self._notified_keys))
 
     # ── Тост (мини-уведомление внутри приложения) ───────────────────────────
     def _show_toast(self, text):
@@ -7306,7 +7376,6 @@ class DailyTodoApp(MDApp):
             "pomodoro":self._pg_pomodoro,
             "stats":self._pg_stats,"settings":self._pg_settings}[tab]
         self.pages.add_widget(pg)
-        self._fab.opacity = 1 if tab == "tasks" else 0
         if tab=="stats":
             def _stats_open(*_):
                 self._refresh_stats()
@@ -7317,11 +7386,14 @@ class DailyTodoApp(MDApp):
             Clock.schedule_once(_stats_open, 0.05)
         if tab=="calendar":Clock.schedule_once(lambda *_: self._refresh_cal(), 0.05)
         if tab=="settings":Clock.schedule_once(lambda *_: self._rebuild_cats_list(), 0.05)
-        # скрыть/показать FAB и голос — ТОЛЬКО на вкладке задач
+        # скрыть/показать FAB — ТОЛЬКО на вкладке задач
         fab_vis = (tab == "tasks")
-        self._fab.opacity       = 1 if fab_vis else 0
-        # Полностью отключаем touch-события когда скрыты
-        self._fab.disabled       = not fab_vis
+        self._fab.opacity  = 1 if fab_vis else 0
+        self._fab.disabled = not fab_vis
+        # KivyMD рисует тень (elevation) отдельным слоем, который НЕ скрывается
+        # через opacity — поэтому дополнительно убираем elevation при скрытии,
+        # иначе остаётся "призрак" тени FAB поверх других вкладок
+        self._fab.elevation = 8 if fab_vis else 0
 
     # ════════════════════════════════════════════════════════════════════════
     #  СТРАНИЦА: ЗАДАЧИ
