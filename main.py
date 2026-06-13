@@ -6856,13 +6856,62 @@ class DailyTodoApp(MDApp):
         # планировщик повторяющихся задач
         Clock.schedule_interval(self._check_repeating_tasks, 3600)
         Clock.schedule_once(self._check_repeating_tasks, 5)
-        # планировщик напоминаний — проверка каждую минуту
+        # планировщик напоминаний — проверка каждую минуту (работает пока
+        # приложение открыто/в фоне, плюс резервная фоновая служба ниже)
         self._notified_keys = set()
         if self.cfg_store.exists("notified_keys"):
             self._notified_keys = set(self.cfg_store.get("notified_keys").get("list", []))
         Clock.schedule_interval(self._check_reminders, 30)
         Clock.schedule_once(self._check_reminders, 3)
+        # Запускаем фоновую службу для уведомлений когда приложение закрыто
+        Clock.schedule_once(self._start_notification_service, 1)
+        # Просим пользователя отключить оптимизацию батареи для надёжности
+        Clock.schedule_once(self._request_ignore_battery_opt, 2)
         return self.sm
+
+    def _request_ignore_battery_opt(self, *_):
+        """Просит пользователя добавить приложение в исключения оптимизации
+        батареи — иначе Android может убивать фоновую службу и Kivy-таймер
+        когда экран выключен, и уведомления не будут приходить."""
+        if PLATFORM != "android":
+            return
+        if self.cfg_store.exists("battery_opt_asked"):
+            return
+        try:
+            from jnius import autoclass, cast
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            Intent = autoclass("android.content.Intent")
+            Uri = autoclass("android.net.Uri")
+            PowerManager = autoclass("android.os.PowerManager")
+            Context = autoclass("android.content.Context")
+            ctx = PythonActivity.mActivity
+            pm = cast("android.os.PowerManager", ctx.getSystemService(Context.POWER_SERVICE))
+            pkg = ctx.getPackageName()
+            if not pm.isIgnoringBatteryOptimizations(pkg):
+                intent = Intent("android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
+                intent.setData(Uri.parse("package:" + pkg))
+                ctx.startActivity(intent)
+            self.cfg_store.put("battery_opt_asked", v=True)
+        except Exception:
+            pass
+
+    def _start_notification_service(self, *_):
+        """Запускает фоновую службу (services/reminder.py), которая
+        продолжает проверять время задач и слать уведомления даже когда
+        приложение полностью закрыто (свайпом из списка задач)."""
+        if PLATFORM != "android":
+            return
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            mActivity = PythonActivity.mActivity
+            Intent = autoclass("android.content.Intent")
+            SERVICE_CLASS = "org.flowdo.flowdo.ServiceReminder"
+            service = autoclass(SERVICE_CLASS)
+            intent = Intent(mActivity.getApplicationContext(), service)
+            mActivity.startService(intent)
+        except Exception:
+            pass
 
     def _apply_md_style(self):
         self.theme_cls.theme_style = "Dark" if THEMES.get(self.theme_name,{}).get("dark") else "Light"
