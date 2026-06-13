@@ -9271,16 +9271,11 @@ class DailyTodoApp(MDApp):
         if PLATFORM == "android":
             try:
                 from android import activity as _android_activity
+                from android.runnable import run_on_ui_thread
                 from jnius import autoclass, cast
                 Intent = autoclass("android.content.Intent")
                 String = autoclass("java.lang.String")
                 PythonActivity = autoclass("org.kivy.android.PythonActivity")
-
-                intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
-                intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("application/json")
-                intent.putExtra(Intent.EXTRA_TITLE,
-                                cast("java.lang.CharSequence", String(fname)))
 
                 REQ_CODE = 7422
                 def _on_result(request_code, result_code, intent_data):
@@ -9310,7 +9305,22 @@ class DailyTodoApp(MDApp):
                         _android_activity.unbind(on_activity_result=_on_result)
 
                 _android_activity.bind(on_activity_result=_on_result)
-                PythonActivity.mActivity.startActivityForResult(intent, REQ_CODE)
+
+                @run_on_ui_thread
+                def _launch():
+                    try:
+                        intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+                        intent.addCategory(Intent.CATEGORY_OPENABLE)
+                        intent.setType("application/json")
+                        intent.putExtra(Intent.EXTRA_TITLE,
+                                         cast("java.lang.CharSequence", String(fname)))
+                        PythonActivity.mActivity.startActivityForResult(intent, REQ_CODE)
+                    except Exception as e:
+                        _android_activity.unbind(on_activity_result=_on_result)
+                        Clock.schedule_once(
+                            lambda *_: self._show_toast(f"Ошибка запуска: {e}"), 0)
+
+                _launch()
             except Exception as e:
                 self._show_toast(f"Не удалось открыть диалог сохранения: {e}")
         else:
@@ -9330,14 +9340,10 @@ class DailyTodoApp(MDApp):
         if PLATFORM == "android":
             try:
                 from android import activity as _android_activity
+                from android.runnable import run_on_ui_thread
                 from jnius import autoclass
                 Intent = autoclass("android.content.Intent")
                 PythonActivity = autoclass("org.kivy.android.PythonActivity")
-
-                intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
-                intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("*/*")  # некоторые файл-менеджеры неверно отдают mime для .json
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
                 REQ_CODE = 7421
                 def _on_result(request_code, result_code, intent_data):
@@ -9373,7 +9379,21 @@ class DailyTodoApp(MDApp):
                         _android_activity.unbind(on_activity_result=_on_result)
 
                 _android_activity.bind(on_activity_result=_on_result)
-                PythonActivity.mActivity.startActivityForResult(intent, REQ_CODE)
+
+                @run_on_ui_thread
+                def _launch():
+                    try:
+                        intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
+                        intent.addCategory(Intent.CATEGORY_OPENABLE)
+                        intent.setType("*/*")
+                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        PythonActivity.mActivity.startActivityForResult(intent, REQ_CODE)
+                    except Exception as e:
+                        _android_activity.unbind(on_activity_result=_on_result)
+                        Clock.schedule_once(
+                            lambda *_: self._show_toast(f"Ошибка запуска: {e}"), 0)
+
+                _launch()
             except Exception as e:
                 self._show_toast(f"Не удалось открыть выбор файла: {e}")
         else:
@@ -9435,21 +9455,30 @@ class DailyTodoApp(MDApp):
 
         if PLATFORM == "android":
             try:
+                from android.runnable import run_on_ui_thread
                 from jnius import autoclass, cast
                 Intent = autoclass("android.content.Intent")
                 String = autoclass("java.lang.String")
                 PythonActivity = autoclass("org.kivy.android.PythonActivity")
-                ctx = PythonActivity.mActivity
 
-                intent = Intent(Intent.ACTION_SEND)
-                intent.setType("text/plain")
-                intent.putExtra(Intent.EXTRA_SUBJECT,
-                                cast("java.lang.CharSequence", String("Задача из Flow\u00b7Do")))
-                intent.putExtra(Intent.EXTRA_TEXT,
-                                cast("java.lang.CharSequence", String(share_text)))
-                title_cs = cast("java.lang.CharSequence", String("Поделиться задачей"))
-                chooser = Intent.createChooser(intent, title_cs)
-                ctx.startActivity(chooser)
+                @run_on_ui_thread
+                def _launch():
+                    try:
+                        ctx = PythonActivity.mActivity
+                        intent = Intent(Intent.ACTION_SEND)
+                        intent.setType("text/plain")
+                        intent.putExtra(Intent.EXTRA_SUBJECT,
+                                        cast("java.lang.CharSequence", String("Задача из Flow\u00b7Do")))
+                        intent.putExtra(Intent.EXTRA_TEXT,
+                                        cast("java.lang.CharSequence", String(share_text)))
+                        title_cs = cast("java.lang.CharSequence", String("Поделиться задачей"))
+                        chooser = Intent.createChooser(intent, title_cs)
+                        ctx.startActivity(chooser)
+                    except Exception as e:
+                        Clock.schedule_once(
+                            lambda *_: self._show_toast(f"Ошибка: {e}"), 0)
+
+                _launch()
             except Exception as e:
                 self._show_toast(f"Не удалось открыть меню \"Поделиться\": {e}")
         else:
