@@ -9591,27 +9591,6 @@ class DailyTodoApp(MDApp):
         card.add_widget(close_btn)
         mv.add_widget(card); mv.open()
 
-    def _export(self,*_):
-        """Сохраняет полный бэкап в общедоступную папку Download/FlowDo.
-        Возвращает путь к файлу при успехе, иначе None."""
-        self._request_storage_permission()
-        folder = self._get_export_dir()
-        from datetime import datetime as _dt
-        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        path = os.path.join(folder, f"flowdo_backup_{ts}.json")
-        try:
-            with open(path,"w",encoding="utf-8") as f:
-                json.dump({"tasks":list(self.tasks.values()),
-                           "categories":self.categories,
-                           "profile":{"name":self.user_name},
-                           "mood_history":self.mood_history},
-                          f, ensure_ascii=False, indent=2)
-            if hasattr(self,"_exp_lbl"): self._exp_lbl.text=f"Сохранено: {path}"
-            return path
-        except Exception as e:
-            if hasattr(self,"_exp_lbl"): self._exp_lbl.text=f"Ошибка: {e}"
-            return None
-
     # ── Rebuild после смены темы ──────────────────────────────────────────────
     def _rebuild(self,*_):
         for attr in ("_pg_tasks","_pg_calendar","_pg_stats","_pg_settings",
