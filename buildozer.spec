@@ -8,8 +8,8 @@ version = 4.0
 
 requirements = python3==3.14.2,kivy==2.3.1,kivymd==1.2.0,plyer
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,RECORD_AUDIO
-android.api = 33
-android.minapi = 21
+android.api = 34
+android.minapi = 23
 android.ndk = 27.3.13750724
 android.ndk_api = 21
 android.archs = arm64-v8a
