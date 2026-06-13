@@ -8302,7 +8302,7 @@ class DailyTodoApp(MDApp):
         di=MDBoxLayout(orientation="vertical", adaptive_height=True)
         for dtxt,dico,dcb in [
             ("Резервная копия","content-save-outline",self._backup_restore),
-            ("Экспорт задач","upload-outline",self._backup_restore),
+            ("Импорт из текста","clipboard-text-outline",self.import_from_text),
             ("О приложении","information-outline",self._show_about)]:
             di.add_widget(self._sett_row(dico,dtxt,dcb))
         data_c.add_widget(di); inn.add_widget(data_c)
@@ -9164,41 +9164,20 @@ class DailyTodoApp(MDApp):
         Clock.schedule_once(lambda *_: setattr(tf, "focus", True), 0.2)
 
     # ── Резервное копирование / Импорт / Поделиться ────────────────────────
-    def _get_export_dir(self):
-        """Папка для бэкапов — НЕ удаляется при удалении приложения.
-        Android: /storage/emulated/0/Download/FlowDo
-        Desktop: ~/FlowDo_Backups"""
-        if PLATFORM == "android":
-            try:
-                from android.storage import primary_external_storage_path
-                base = primary_external_storage_path()
-                folder = os.path.join(base, "Download", "FlowDo")
-            except Exception:
-                folder = "/storage/emulated/0/Download/FlowDo"
-        else:
-            folder = os.path.join(os.path.expanduser("~"), "FlowDo_Backups")
-        try:
-            os.makedirs(folder, exist_ok=True)
-        except Exception:
-            pass
-        return folder
-
-    def _request_storage_permission(self):
-        if PLATFORM == "android":
-            try:
-                from android.permissions import request_permissions, Permission, check_permission
-                perms = [Permission.WRITE_EXTERNAL_STORAGE, Permission.READ_EXTERNAL_STORAGE]
-                if not all(check_permission(p) for p in perms):
-                    request_permissions(perms)
-            except Exception:
-                pass
+    # ── Резервное копирование / Импорт / Поделиться ────────────────────────
+    #  Используем системный SAF (Storage Access Framework):
+    #  - Сохранение: ACTION_CREATE_DOCUMENT -> пользователь выбирает место
+    #    (по умолчанию открывается папка "Download"), файл остаётся ПОСЛЕ
+    #    удаления приложения.
+    #  - Импорт: ACTION_OPEN_DOCUMENT -> пользователь выбирает файл бэкапа.
+    #  - "Поделиться задачей": передаём JSON как ТЕКСТ через ACTION_SEND
+    #    (без FileProvider — работает без доп. настройки в любом Android).
 
     def _backup_restore(self, *_):
         """Резервная копия — диалог сохранения и загрузки."""
-        self._request_storage_permission()
         from kivy.uix.modalview import ModalView
         mv = ModalView(background_color=(0,0,0,0.6), auto_dismiss=True,
-                       size_hint=(0.9, None), height=S(330),
+                       size_hint=(0.9, None), height=S(300),
                        pos_hint={"center_x":0.5,"center_y":0.5})
         card = MDCard(orientation="vertical", size_hint=(1,1),
                       radius=[S(16)], elevation=8,
@@ -9208,40 +9187,23 @@ class DailyTodoApp(MDApp):
                             halign="center", size_hint_y=None, height=S(32))
         title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(title_lbl)
-        folder = self._get_export_dir()
         info_lbl = MDLabel(
-            text=f"Файлы сохраняются в:\nDownload/FlowDo\n(сохранится даже после удаления приложения)",
+            text="Сохраните файл в удобное место (например в Загрузки).\n"
+                 "Этот файл можно загрузить позже, даже после переустановки.",
             font_style="Caption", theme_text_color="Secondary",
             halign="center", size_hint_y=None, height=S(56))
         info_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(info_lbl)
-        self._backup_status = MDLabel(text="", font_style="Caption",
-                                       theme_text_color="Secondary",
-                                       halign="center", size_hint_y=None, height=S(28))
-        self._backup_status.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        card.add_widget(self._backup_status)
-        save_btn = MDRaisedButton(text="Сохранить бэкап",
+        save_btn = MDRaisedButton(text="Сохранить бэкап...",
                                    md_bg_color=C["accent"], elevation=0,
                                    size_hint_y=None, height=S(44))
-        def _do_save(*_):
-            path = self._export()
-            if path:
-                self._backup_status.text = f"Сохранено: {os.path.basename(path)}"
-                self._show_toast("Бэкап сохранён в Download/FlowDo")
-            else:
-                self._backup_status.text = "Ошибка сохранения"
-        save_btn.bind(on_release=_do_save)
+        save_btn.bind(on_release=lambda *_: (mv.dismiss(), self._export()))
         card.add_widget(save_btn)
-        load_btn = MDRaisedButton(text="Загрузить бэкап (последний)",
+        load_btn = MDRaisedButton(text="Загрузить бэкап из файла...",
                                    md_bg_color=C["surf2"], elevation=0,
                                    size_hint_y=None, height=S(44))
-        load_btn.bind(on_release=lambda *_: self._import_backup(mv))
+        load_btn.bind(on_release=lambda *_: (mv.dismiss(), self._pick_import_file()))
         card.add_widget(load_btn)
-        browse_btn = MDRaisedButton(text="Выбрать файл...",
-                                   md_bg_color=C["surf2"], elevation=0,
-                                   size_hint_y=None, height=S(44))
-        browse_btn.bind(on_release=lambda *_: (mv.dismiss(), self._pick_import_file()))
-        card.add_widget(browse_btn)
         close_btn = MDRaisedButton(text="Закрыть", elevation=0,
                                     md_bg_color=C["surf2"],
                                     size_hint_y=None, height=S(36))
@@ -9249,34 +9211,84 @@ class DailyTodoApp(MDApp):
         card.add_widget(close_btn)
         mv.add_widget(card); mv.open()
 
-    def _import_backup(self, parent_mv=None):
-        """Загружает самый новый бэкап из Download/FlowDo."""
-        folder = self._get_export_dir()
-        try:
-            files = [f for f in os.listdir(folder)
-                     if f.startswith("flowdo_backup") and f.endswith(".json")]
-        except Exception as e:
-            self._show_toast(f"Ошибка доступа к папке: {e}")
-            return
-        if not files:
-            self._show_toast(f"Бэкапы не найдены в Download/FlowDo")
-            return
-        files.sort(reverse=True)  # самый новый (по дате в имени) первым
-        path = os.path.join(folder, files[0])
-        self._load_backup_file(path, parent_mv)
+    def _export(self, *_):
+        """Открывает системный диалог 'Сохранить как' и пишет туда бэкап JSON."""
+        data = {"tasks": list(self.tasks.values()),
+                "categories": self.categories,
+                "profile": {"name": self.user_name},
+                "mood_history": self.mood_history}
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        fname = f"flowdo_backup_{ts}.json"
+        text = json.dumps(data, ensure_ascii=False, indent=2)
 
-    def _pick_import_file(self):
-        """Открывает системный выбор файла для импорта."""
         if PLATFORM == "android":
             try:
                 from android import activity as _android_activity
-                from jnius import autoclass, cast
+                from jnius import autoclass
+                Intent = autoclass("android.content.Intent")
+                PythonActivity = autoclass("org.kivy.android.PythonActivity")
+
+                intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.setType("application/json")
+                intent.putExtra(Intent.EXTRA_TITLE, fname)
+
+                REQ_CODE = 7422
+                def _on_result(request_code, result_code, intent_data):
+                    if request_code != REQ_CODE: return
+                    RESULT_OK = -1
+                    if result_code != RESULT_OK or intent_data is None:
+                        Clock.schedule_once(
+                            lambda *_: self._show_toast("Сохранение отменено"), 0)
+                        _android_activity.unbind(on_activity_result=_on_result)
+                        return
+                    uri = intent_data.getData()
+                    try:
+                        ctx = PythonActivity.mActivity
+                        resolver = ctx.getContentResolver()
+                        stream = resolver.openOutputStream(uri)
+                        OutputStreamWriter = autoclass("java.io.OutputStreamWriter")
+                        writer = OutputStreamWriter(stream, "UTF-8")
+                        writer.write(text)
+                        writer.flush()
+                        writer.close()
+                        Clock.schedule_once(
+                            lambda *_: self._show_toast("Бэкап сохранён!"), 0)
+                    except Exception as e:
+                        Clock.schedule_once(
+                            lambda *_: self._show_toast(f"Ошибка сохранения: {e}"), 0)
+                    finally:
+                        _android_activity.unbind(on_activity_result=_on_result)
+
+                _android_activity.bind(on_activity_result=_on_result)
+                PythonActivity.mActivity.startActivityForResult(intent, REQ_CODE)
+            except Exception as e:
+                self._show_toast(f"Не удалось открыть диалог сохранения: {e}")
+        else:
+            # Desktop: сохраняем в домашнюю папку
+            path = os.path.join(os.path.expanduser("~"), fname)
+            try:
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(text)
+                self._show_toast(f"Сохранено: {path}")
+                return path
+            except Exception as e:
+                self._show_toast(f"Ошибка: {e}")
+                return None
+
+    def _pick_import_file(self):
+        """Открывает системный выбор файла для импорта бэкапа/задачи."""
+        if PLATFORM == "android":
+            try:
+                from android import activity as _android_activity
+                from jnius import autoclass
                 Intent = autoclass("android.content.Intent")
                 PythonActivity = autoclass("org.kivy.android.PythonActivity")
 
                 intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
-                intent.setType("application/json")
+                intent.setType("*/*")  # некоторые файл-менеджеры неверно отдают mime для .json
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
                 REQ_CODE = 7421
@@ -9284,9 +9296,12 @@ class DailyTodoApp(MDApp):
                     if request_code != REQ_CODE: return
                     RESULT_OK = -1
                     if result_code != RESULT_OK or intent_data is None:
+                        _android_activity.unbind(on_activity_result=_on_result)
                         return
                     uri = intent_data.getData()
-                    if uri is None: return
+                    if uri is None:
+                        _android_activity.unbind(on_activity_result=_on_result)
+                        return
                     try:
                         ctx = PythonActivity.mActivity
                         resolver = ctx.getContentResolver()
@@ -9314,23 +9329,22 @@ class DailyTodoApp(MDApp):
             except Exception as e:
                 self._show_toast(f"Не удалось открыть выбор файла: {e}")
         else:
-            # Desktop fallback — берём последний бэкап из папки
-            self._import_backup()
-
-    def _load_backup_file(self, path, parent_mv=None):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            self._apply_imported_data(data)
-            if parent_mv:
-                parent_mv.dismiss()
-        except Exception as e:
-            self._show_toast(f"Ошибка загрузки: {e}")
+            from tkinter import filedialog, Tk
+            try:
+                root = Tk(); root.withdraw()
+                path = filedialog.askopenfilename(filetypes=[("JSON","*.json")])
+                root.destroy()
+                if path:
+                    with open(path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    self._apply_imported_data(data)
+            except Exception as e:
+                self._show_toast(f"Ошибка: {e}")
 
     def _apply_imported_data(self, data):
         """Применяет данные из импортированного JSON (полный бэкап или одна задача)."""
         try:
-            # Если это файл одной задачи (поделились через share_task)
+            # Если это одна задача (поделились через share_task)
             if "task" in data and "tasks" not in data:
                 t = data["task"]
                 import uuid
@@ -9359,64 +9373,85 @@ class DailyTodoApp(MDApp):
             self._show_toast(f"Ошибка импорта: {e}")
 
     def share_task(self, task_id):
-        """Экспортирует одну задачу в JSON и открывает системное меню 'Поделиться'."""
+        """Делится задачей как текстом (JSON) через системное меню — без FileProvider."""
         task = self.tasks.get(task_id)
         if not task:
             self._show_toast("Задача не найдена")
             return
-        self._request_storage_permission()
-        # Сохраняем во временный файл (доступный другим приложениям)
-        if PLATFORM == "android":
-            try:
-                from android.storage import app_storage_path
-                tmp_dir = os.path.join(app_storage_path(), "shared")
-            except Exception:
-                tmp_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "shared")
-        else:
-            tmp_dir = os.path.join(os.path.expanduser("~"), "FlowDo_Backups", "shared")
-        try:
-            os.makedirs(tmp_dir, exist_ok=True)
-        except Exception:
-            pass
-        safe_title = "".join(c for c in task.get("title","task")[:30]
-                             if c.isalnum() or c in " _-").strip() or "task"
-        fname = f"FlowDo_{safe_title}.json"
-        fpath = os.path.join(tmp_dir, fname)
-        try:
-            with open(fpath, "w", encoding="utf-8") as f:
-                json.dump({"flowdo_share": True, "task": task},
-                          f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            self._show_toast(f"Ошибка: {e}")
-            return
+        payload = json.dumps({"flowdo_share": True, "task": task},
+                              ensure_ascii=False)
+        share_text = (f"[FlowDo задача] {task.get('title','')}\n"
+                       f"Вставьте этот текст в Flow·Do -> Настройки -> "
+                       f"Резервная копия -> Импорт из текста, чтобы добавить задачу.\n\n"
+                       f"{payload}")
 
         if PLATFORM == "android":
             try:
-                from jnius import autoclass, cast
+                from jnius import autoclass
                 Intent = autoclass("android.content.Intent")
-                FileProvider = autoclass("androidx.core.content.FileProvider")
                 PythonActivity = autoclass("org.kivy.android.PythonActivity")
-                File = autoclass("java.io.File")
-
                 ctx = PythonActivity.mActivity
-                file_obj = File(fpath)
-                authority = ctx.getPackageName() + ".fileprovider"
-                uri = FileProvider.getUriForFile(ctx, authority, file_obj)
 
                 intent = Intent(Intent.ACTION_SEND)
-                intent.setType("application/json")
-                intent.putExtra(Intent.EXTRA_STREAM, uri)
-                intent.putExtra(Intent.EXTRA_SUBJECT, "Задача из Flow·Do")
-                intent.putExtra(Intent.EXTRA_TEXT,
-                                f"Задача: {task.get('title','')}\n"
-                                f"Откройте файл в приложении Flow·Do чтобы добавить её.")
-                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                intent.setType("text/plain")
+                intent.putExtra(Intent.EXTRA_SUBJECT, "Задача из Flow\u00b7Do")
+                intent.putExtra(Intent.EXTRA_TEXT, share_text)
                 chooser = Intent.createChooser(intent, "Поделиться задачей")
                 ctx.startActivity(chooser)
             except Exception as e:
                 self._show_toast(f"Не удалось открыть меню \"Поделиться\": {e}")
         else:
-            self._show_toast(f"Файл сохранён: {fpath}")
+            try:
+                import pyperclip
+                pyperclip.copy(share_text)
+                self._show_toast("Скопировано в буфер обмена!")
+            except Exception:
+                self._show_toast("Поделиться доступно только на Android")
+
+    def import_from_text(self, *_):
+        """Диалог ручного ввода/вставки JSON задачи для импорта."""
+        from kivy.uix.modalview import ModalView
+        mv = ModalView(background_color=(0,0,0,0.6), auto_dismiss=True,
+                       size_hint=(0.9, None), height=S(320),
+                       pos_hint={"center_x":0.5,"center_y":0.5})
+        card = MDCard(orientation="vertical", size_hint=(1,1),
+                      radius=[S(16)], elevation=8,
+                      md_bg_color=C["surf"], padding=[S(20),S(16)], spacing=S(10))
+        title_lbl = MDLabel(text="Импорт задачи из текста", font_style="H6", bold=True,
+                            theme_text_color="Custom", text_color=C["text"],
+                            halign="center", size_hint_y=None, height=S(32))
+        title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(title_lbl)
+        hint = MDLabel(text="Вставьте текст, полученный через 'Поделиться задачей'",
+                       font_style="Caption", theme_text_color="Secondary",
+                       halign="center", size_hint_y=None, height=S(36))
+        hint.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(hint)
+        tf = MDTextField(hint_text="Вставьте текст здесь...",
+                         multiline=True, size_hint_y=None, height=S(120))
+        card.add_widget(tf)
+        import_btn = MDRaisedButton(text="Импортировать",
+                                     md_bg_color=C["accent"], elevation=0,
+                                     size_hint_y=None, height=S(44))
+        def _do_import(*_):
+            raw = tf.text.strip()
+            # Извлекаем JSON — ищем первую { и последнюю }
+            try:
+                start = raw.index("{")
+                end = raw.rindex("}") + 1
+                data = json.loads(raw[start:end])
+                self._apply_imported_data(data)
+                mv.dismiss()
+            except Exception as e:
+                self._show_toast(f"Не удалось разобрать текст: {e}")
+        import_btn.bind(on_release=_do_import)
+        card.add_widget(import_btn)
+        close_btn = MDRaisedButton(text="Отмена", elevation=0,
+                                    md_bg_color=C["surf2"],
+                                    size_hint_y=None, height=S(36))
+        close_btn.bind(on_release=lambda *_: mv.dismiss())
+        card.add_widget(close_btn)
+        mv.add_widget(card); mv.open()
 
     def handle_shared_file(self, uri_or_path):
         """Вызывается когда приложение открыто через 'Открыть с помощью' для .json файла."""
@@ -9426,7 +9461,6 @@ class DailyTodoApp(MDApp):
                 PythonActivity = autoclass("org.kivy.android.PythonActivity")
                 ctx = PythonActivity.mActivity
                 resolver = ctx.getContentResolver()
-                from jnius import cast
                 Uri = autoclass("android.net.Uri")
                 uri = Uri.parse(str(uri_or_path))
                 stream = resolver.openInputStream(uri)
