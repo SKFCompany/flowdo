@@ -7,7 +7,7 @@ source.include_exts = py,png,jpg,kv,atlas,json
 version = 4.0
 
 requirements = python3==3.14.2,kivy==2.3.1,kivymd==1.2.0,plyer
-android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,RECORD_AUDIO
+android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,RECORD_AUDIO,POST_NOTIFICATIONS, WAKE_LOCK, FOREGROUND_SERVICE, RECEIVE_BOOT_COMPLETED
 android.api = 33
 android.minapi = 21
 android.ndk = 27.3.13750724
@@ -21,6 +21,7 @@ android.add_resources = res
 android.manifestmodifications = android_manifest_mod.xml
 android.gradle_dependencies = androidx.core:core:1.10.1
 android.enable_androidx = True
+services = Reminder:service/reminder.py
 
 # Для отправки файлов через "Поделиться" нужен FileProvider
 android.add_xml = res/xml/file_provider_paths.xml
