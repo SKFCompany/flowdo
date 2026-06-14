@@ -73,6 +73,7 @@ def _send_notification(title, message):
         NotificationChannel = autoclass("android.app.NotificationChannel")
         NotificationBuilder = autoclass("android.app.Notification$Builder")
         Build = autoclass("android.os.Build")
+        BuildVersion = autoclass("android.os.Build$VERSION")
         String = autoclass("java.lang.String")
 
         service = PythonService.mService
@@ -84,7 +85,7 @@ def _send_notification(title, message):
 
         channel_id = "flowdo_reminders"
         # Android 8+ требует канал уведомлений
-        if Build.VERSION.SDK_INT >= 26:
+        if BuildVersion.SDK_INT >= 26:
             channel = NotificationChannel(
                 channel_id,
                 cast("java.lang.CharSequence", String("Flow\u00b7Do Напоминания")),
