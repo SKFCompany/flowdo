@@ -19,8 +19,6 @@ android.ndk_path = /usr/local/lib/android/sdk/ndk/27.3.13750724
 orientation = portrait
 android.add_resources = res
 android.manifestmodifications = android_manifest_mod.xml
-android.gradle_dependencies = androidx.core:core:1.10.1
-android.enable_androidx = True
 services = Reminder:service/reminder.py:foreground
 
 # Для отправки файлов через "Поделиться" нужен FileProvider
