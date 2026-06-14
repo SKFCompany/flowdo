@@ -61,6 +61,66 @@ def _save_json(path, data):
         pass
 
 
+def _start_foreground(title="Flow·Do", message="Проверка напоминаний..."):
+    """Переводит службу в foreground-режим с постоянным уведомлением.
+    Без этого Android (особенно 8+) убивает фоновую службу через
+    несколько минут после того как приложение свёрнуто/закрыто."""
+    try:
+        from jnius import autoclass, cast
+        PythonService = autoclass("org.kivy.android.PythonService")
+        Context = autoclass("android.content.Context")
+        NotificationManager = autoclass("android.app.NotificationManager")
+        NotificationChannel = autoclass("android.app.NotificationChannel")
+        NotificationBuilder = autoclass("android.app.Notification$Builder")
+        BuildVersion = autoclass("android.os.Build$VERSION")
+        String = autoclass("java.lang.String")
+
+        service = PythonService.mService
+        ctx = service.getApplicationContext()
+
+        channel_id = "flowdo_service"
+        if BuildVersion.SDK_INT >= 26:
+            notif_manager = cast(
+                "android.app.NotificationManager",
+                ctx.getSystemService(Context.NOTIFICATION_SERVICE)
+            )
+            channel = NotificationChannel(
+                channel_id,
+                cast("java.lang.CharSequence", String("Flow\u00b7Do Служба")),
+                NotificationManager.IMPORTANCE_MIN
+            )
+            notif_manager.createNotificationChannel(channel)
+            builder = NotificationBuilder(ctx, channel_id)
+        else:
+            builder = NotificationBuilder(ctx)
+
+        builder.setContentTitle(cast("java.lang.CharSequence", String(title)))
+        builder.setContentText(cast("java.lang.CharSequence", String(message)))
+
+        icon_res = 0
+        try:
+            icon_res = ctx.getApplicationInfo().icon
+        except Exception:
+            pass
+        if not icon_res:
+            try:
+                Rdrawable = autoclass("android.R$drawable")
+                icon_res = Rdrawable.ic_dialog_info
+            except Exception:
+                icon_res = 17301659
+        builder.setSmallIcon(icon_res)
+
+        # ID должен быть ненулевой
+        service.startForeground(1, builder.build())
+    except Exception as e:
+        try:
+            log_path = os.path.join(_get_storage_path(), "service_error.log")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"{datetime.now()}: startForeground error: {e}\n")
+        except Exception:
+            pass
+
+
 def _send_notification(title, message):
     """Отправляет системное Android-уведомление напрямую через
     NotificationManager (без plyer, т.к. plyer внутри Service иногда
@@ -93,12 +153,31 @@ def _send_notification(title, message):
             )
             notif_manager.createNotificationChannel(channel)
 
-        builder = NotificationBuilder(ctx, channel_id)
+        if BuildVersion.SDK_INT >= 26:
+            builder = NotificationBuilder(ctx, channel_id)
+        else:
+            builder = NotificationBuilder(ctx)
         builder.setContentTitle(cast("java.lang.CharSequence", String(title)))
         builder.setContentText(cast("java.lang.CharSequence", String(message)))
-        builder.setSmallIcon(ctx.getApplicationInfo().icon)
+
+        # Иконка: getApplicationInfo().icon может вернуть 0, что приводит
+        # к IllegalArgumentException в setSmallIcon -> используем системную
+        # иконку как надёжный фоллбэк
+        icon_res = 0
+        try:
+            icon_res = ctx.getApplicationInfo().icon
+        except Exception:
+            pass
+        if not icon_res:
+            try:
+                Rdrawable = autoclass("android.R$drawable")
+                icon_res = Rdrawable.ic_dialog_info
+            except Exception:
+                icon_res = 17301659
+        builder.setSmallIcon(icon_res)
         builder.setAutoCancel(True)
-        builder.setPriority(2)  # PRIORITY_HIGH
+        if BuildVersion.SDK_INT < 26:
+            builder.setPriority(1)  # PRIORITY_HIGH (только для API < 26)
 
         notif_id = int(time.time()) % 100000
         notif_manager.notify(notif_id, builder.build())
@@ -176,6 +255,10 @@ def _check_reminders(base_path, notified_keys):
 def main():
     base_path = _get_storage_path()
     keys_path = os.path.join(base_path, "service_notified_keys.json")
+
+    # Переводим службу в foreground — без этого Android убивает её
+    # через несколько минут после закрытия приложения.
+    _start_foreground("Flow\u00b7Do", "Напоминания включены")
 
     # Загружаем ранее отправленные уведомления (общие с основным приложением
     # был бы идеал, но проще держать отдельный файл для службы)
