@@ -6963,41 +6963,7 @@ class DailyTodoApp(MDApp):
         создаёт канал на многих устройствах, поэтому notify() молча
         ничего не делает)."""
         try:
-            from jnius import autoclass, cast
-            PythonActivity = autoclass("org.kivy.android.PythonActivity")
-            Context = autoclass("android.content.Context")
-            NotificationManager = autoclass("android.app.NotificationManager")
-            NotificationChannel = autoclass("android.app.NotificationChannel")
-            NotificationBuilder = autoclass("android.app.Notification$Builder")
-            Build = autoclass("android.os.Build")
-            String = autoclass("java.lang.String")
-
-            ctx = PythonActivity.mActivity.getApplicationContext()
-            notif_manager = cast("android.app.NotificationManager",
-                                  ctx.getSystemService(Context.NOTIFICATION_SERVICE))
-
-            channel_id = "flowdo_reminders"
-            if Build.VERSION.SDK_INT >= 26:
-                channel = NotificationChannel(
-                    channel_id,
-                    cast("java.lang.CharSequence", String("Flow\u00b7Do Напоминания")),
-                    NotificationManager.IMPORTANCE_HIGH
-                )
-                notif_manager.createNotificationChannel(channel)
-
-            if Build.VERSION.SDK_INT >= 26:
-                builder = NotificationBuilder(ctx, channel_id)
-            else:
-                builder = NotificationBuilder(ctx)
-            builder.setContentTitle(cast("java.lang.CharSequence", String(title)))
-            builder.setContentText(cast("java.lang.CharSequence", String(message)))
-            builder.setSmallIcon(ctx.getApplicationInfo().icon)
-            builder.setAutoCancel(True)
-            builder.setPriority(2)  # PRIORITY_HIGH
-
-            import time as _time
-            notif_id = int(_time.time()) % 100000
-            notif_manager.notify(notif_id, builder.build())
+            self._do_send_android_notification(title, message)
         except Exception as e:
             # Резервный вариант через plyer, на случай если NotificationManager
             # недоступен по какой-то причине
@@ -7009,7 +6975,63 @@ class DailyTodoApp(MDApp):
                     pass
             if hasattr(self, "_show_toast"):
                 Clock.schedule_once(
-                    lambda *_: self._show_toast(f"Notif error: {e}"), 0)
+                    lambda *_, err=str(e): self._show_toast(f"Notif error: {err}"), 0)
+
+    def _do_send_android_notification(self, title, message):
+        from jnius import autoclass, cast
+        PythonActivity = autoclass("org.kivy.android.PythonActivity")
+        Context = autoclass("android.content.Context")
+        NotificationManager = autoclass("android.app.NotificationManager")
+        NotificationChannel = autoclass("android.app.NotificationChannel")
+        NotificationBuilder = autoclass("android.app.Notification$Builder")
+        Build = autoclass("android.os.Build")
+        String = autoclass("java.lang.String")
+
+        ctx = PythonActivity.mActivity.getApplicationContext()
+        notif_manager = cast("android.app.NotificationManager",
+                              ctx.getSystemService(Context.NOTIFICATION_SERVICE))
+
+        channel_id = "flowdo_reminders"
+        if Build.VERSION.SDK_INT >= 26:
+            channel = NotificationChannel(
+                channel_id,
+                cast("java.lang.CharSequence", String("Flow\u00b7Do Напоминания")),
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            notif_manager.createNotificationChannel(channel)
+
+        if Build.VERSION.SDK_INT >= 26:
+            builder = NotificationBuilder(ctx, channel_id)
+        else:
+            builder = NotificationBuilder(ctx)
+        builder.setContentTitle(cast("java.lang.CharSequence", String(title)))
+        builder.setContentText(cast("java.lang.CharSequence", String(message)))
+
+        # Иконка: getApplicationInfo().icon может вернуть 0, что приводит
+        # к IllegalArgumentException в setSmallIcon -> используем системную
+        # иконку как надёжный фоллбэк
+        icon_res = 0
+        try:
+            icon_res = ctx.getApplicationInfo().icon
+        except Exception:
+            pass
+        if not icon_res:
+            try:
+                # android.R.drawable.ic_dialog_info — всегда доступна в системе
+                Rdrawable = autoclass("android.R$drawable")
+                icon_res = Rdrawable.ic_dialog_info
+            except Exception:
+                icon_res = 17301659  # числовой fallback (ic_dialog_info на большинстве версий)
+        builder.setSmallIcon(icon_res)
+        builder.setAutoCancel(True)
+        if Build.VERSION.SDK_INT < 26:
+            # На API < 26 приоритет берётся из Notification.PRIORITY_HIGH (=1).
+            # На API >= 26 приоритет определяется каналом (IMPORTANCE_HIGH).
+            builder.setPriority(1)
+
+        import time as _time
+        notif_id = int(_time.time()) % 100000
+        notif_manager.notify(notif_id, builder.build())
 
     # ── Напоминания / уведомления по времени задачи ─────────────────────────
     # Сопоставление текста напоминания со смещением в минутах ДО времени задачи
