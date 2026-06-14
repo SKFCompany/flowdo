@@ -6863,11 +6863,38 @@ class DailyTodoApp(MDApp):
             self._notified_keys = set(self.cfg_store.get("notified_keys").get("list", []))
         Clock.schedule_interval(self._check_reminders, 30)
         Clock.schedule_once(self._check_reminders, 3)
+        # Запрашиваем разрешение на уведомления (КРИТИЧНО для Android 13+,
+        # без него notify() ничего не делает и не выдаёт ошибку)
+        Clock.schedule_once(self._request_notification_permission, 0.5)
         # Запускаем фоновую службу для уведомлений когда приложение закрыто
         Clock.schedule_once(self._start_notification_service, 1)
         # Просим пользователя отключить оптимизацию батареи для надёжности
         Clock.schedule_once(self._request_ignore_battery_opt, 2)
         return self.sm
+
+    def _test_notification(self, *_):
+        """Сразу отправляет тестовое уведомление — для проверки что
+        уведомления вообще работают на этом устройстве."""
+        self._show_toast("Отправляю тестовое уведомление...")
+        Clock.schedule_once(
+            lambda *_: self._send_notification(
+                "Если вы видите это уведомление — всё работает!",
+                "Flow\u00b7Do Тест"), 0.3)
+
+    def _request_notification_permission(self, *_):
+        """Android 13+ (API 33) требует runtime-разрешение POST_NOTIFICATIONS.
+        Без него NotificationManager.notify() молча игнорируется."""
+        if PLATFORM != "android":
+            return
+        try:
+            from android.permissions import request_permissions, Permission, check_permission
+            perm = getattr(Permission, "POST_NOTIFICATIONS", None)
+            if perm is None:
+                return  # старая версия plyer/android, разрешение не нужно (API < 33)
+            if not check_permission(perm):
+                request_permissions([perm])
+        except Exception:
+            pass
 
     def _request_ignore_battery_opt(self, *_):
         """Просит пользователя добавить приложение в исключения оптимизации
@@ -6921,12 +6948,68 @@ class DailyTodoApp(MDApp):
 
     # ── Уведомления ─────────────────────────────────────────────────────────
     def _send_notification(self, message, title="Flow·Do"):
-        if PLYER_OK:
+        if PLATFORM == "android":
+            self._send_android_notification(title, message)
+        elif PLYER_OK:
             try:
                 _plyer_notif.notify(title=title, message=message,
                                     app_name="FlowDo", timeout=5)
             except Exception:
                 pass
+
+    def _send_android_notification(self, title, message):
+        """Прямая отправка через NotificationManager с явным созданием канала
+        (на Android 8+ уведомления без канала не показываются — plyer не
+        создаёт канал на многих устройствах, поэтому notify() молча
+        ничего не делает)."""
+        try:
+            from jnius import autoclass, cast
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            Context = autoclass("android.content.Context")
+            NotificationManager = autoclass("android.app.NotificationManager")
+            NotificationChannel = autoclass("android.app.NotificationChannel")
+            NotificationBuilder = autoclass("android.app.Notification$Builder")
+            Build = autoclass("android.os.Build")
+            String = autoclass("java.lang.String")
+
+            ctx = PythonActivity.mActivity.getApplicationContext()
+            notif_manager = cast("android.app.NotificationManager",
+                                  ctx.getSystemService(Context.NOTIFICATION_SERVICE))
+
+            channel_id = "flowdo_reminders"
+            if Build.VERSION.SDK_INT >= 26:
+                channel = NotificationChannel(
+                    channel_id,
+                    cast("java.lang.CharSequence", String("Flow\u00b7Do Напоминания")),
+                    NotificationManager.IMPORTANCE_HIGH
+                )
+                notif_manager.createNotificationChannel(channel)
+
+            if Build.VERSION.SDK_INT >= 26:
+                builder = NotificationBuilder(ctx, channel_id)
+            else:
+                builder = NotificationBuilder(ctx)
+            builder.setContentTitle(cast("java.lang.CharSequence", String(title)))
+            builder.setContentText(cast("java.lang.CharSequence", String(message)))
+            builder.setSmallIcon(ctx.getApplicationInfo().icon)
+            builder.setAutoCancel(True)
+            builder.setPriority(2)  # PRIORITY_HIGH
+
+            import time as _time
+            notif_id = int(_time.time()) % 100000
+            notif_manager.notify(notif_id, builder.build())
+        except Exception as e:
+            # Резервный вариант через plyer, на случай если NotificationManager
+            # недоступен по какой-то причине
+            if PLYER_OK:
+                try:
+                    _plyer_notif.notify(title=title, message=message,
+                                        app_name="FlowDo", timeout=5)
+                except Exception:
+                    pass
+            if hasattr(self, "_show_toast"):
+                Clock.schedule_once(
+                    lambda *_: self._show_toast(f"Notif error: {e}"), 0)
 
     # ── Напоминания / уведомления по времени задачи ─────────────────────────
     # Сопоставление текста напоминания со смещением в минутах ДО времени задачи
@@ -8470,6 +8553,7 @@ class DailyTodoApp(MDApp):
         for dtxt,dico,dcb in [
             ("Резервная копия","content-save-outline",self._backup_restore),
             ("Импорт из текста","clipboard-text-outline",self.import_from_text),
+            ("Тест уведомления","bell-ring-outline",self._test_notification),
             ("О приложении","information-outline",self._show_about)]:
             di.add_widget(self._sett_row(dico,dtxt,dcb))
         data_c.add_widget(di); inn.add_widget(data_c)
