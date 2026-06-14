@@ -6923,18 +6923,36 @@ class DailyTodoApp(MDApp):
             pass
 
     def _start_notification_service(self, *_):
-        """Запускает фоновую службу (services/reminder.py), которая
+        """Запускает фоновую службу (service/reminder.py), которая
         продолжает проверять время задач и слать уведомления даже когда
-        приложение полностью закрыто (свайпом из списка задач)."""
+        приложение полностью закрыто (свайпом из списка задач).
+
+        ВАЖНО: если служба не добавлена в buildozer.spec (services = ...),
+        класс ServiceReminder не существует в APK — в этом случае просто
+        тихо выходим, не мешая работе остальной части приложения."""
         if PLATFORM != "android":
             return
+        if not getattr(self, "_service_enabled", True):
+            return
         try:
-            from jnius import autoclass
+            from jnius import autoclass, JavaException
+        except Exception:
+            return
+        # Сначала проверяем, существует ли класс службы вообще —
+        # делаем это в отдельном try, чтобы не трогать Activity/Intent
+        # если класса нет.
+        SERVICE_CLASS = "org.flowdo.flowdo.ServiceReminder"
+        try:
+            service = autoclass(SERVICE_CLASS)
+        except Exception:
+            # Служба не скомпилирована в этой сборке — отключаем
+            # дальнейшие попытки и выходим без ошибок.
+            self._service_enabled = False
+            return
+        try:
             PythonActivity = autoclass("org.kivy.android.PythonActivity")
             mActivity = PythonActivity.mActivity
             Intent = autoclass("android.content.Intent")
-            SERVICE_CLASS = "org.flowdo.flowdo.ServiceReminder"
-            service = autoclass(SERVICE_CLASS)
             intent = Intent(mActivity.getApplicationContext(), service)
             mActivity.startService(intent)
         except Exception:
@@ -6985,6 +7003,7 @@ class DailyTodoApp(MDApp):
         NotificationChannel = autoclass("android.app.NotificationChannel")
         NotificationBuilder = autoclass("android.app.Notification$Builder")
         Build = autoclass("android.os.Build")
+        BuildVersion = autoclass("android.os.Build$VERSION")
         String = autoclass("java.lang.String")
 
         ctx = PythonActivity.mActivity.getApplicationContext()
@@ -6992,7 +7011,7 @@ class DailyTodoApp(MDApp):
                               ctx.getSystemService(Context.NOTIFICATION_SERVICE))
 
         channel_id = "flowdo_reminders"
-        if Build.VERSION.SDK_INT >= 26:
+        if BuildVersion.SDK_INT >= 26:
             channel = NotificationChannel(
                 channel_id,
                 cast("java.lang.CharSequence", String("Flow\u00b7Do Напоминания")),
@@ -7000,7 +7019,7 @@ class DailyTodoApp(MDApp):
             )
             notif_manager.createNotificationChannel(channel)
 
-        if Build.VERSION.SDK_INT >= 26:
+        if BuildVersion.SDK_INT >= 26:
             builder = NotificationBuilder(ctx, channel_id)
         else:
             builder = NotificationBuilder(ctx)
@@ -7024,7 +7043,7 @@ class DailyTodoApp(MDApp):
                 icon_res = 17301659  # числовой fallback (ic_dialog_info на большинстве версий)
         builder.setSmallIcon(icon_res)
         builder.setAutoCancel(True)
-        if Build.VERSION.SDK_INT < 26:
+        if BuildVersion.SDK_INT < 26:
             # На API < 26 приоритет берётся из Notification.PRIORITY_HIGH (=1).
             # На API >= 26 приоритет определяется каналом (IMPORTANCE_HIGH).
             builder.setPriority(1)
