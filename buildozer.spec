@@ -21,7 +21,7 @@ android.add_resources = res
 android.manifestmodifications = android_manifest_mod.xml
 android.gradle_dependencies = androidx.core:core:1.10.1
 android.enable_androidx = True
-services = Reminder:service/reminder.py
+services = Reminder:service/reminder.py:foreground
 
 # Для отправки файлов через "Поделиться" нужен FileProvider
 android.add_xml = res/xml/file_provider_paths.xml
