@@ -8,7 +8,7 @@ version = 4.0
 
 requirements = python3==3.14.2,kivy==2.3.1,kivymd==1.2.0,plyer
 android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE,RECORD_AUDIO,POST_NOTIFICATIONS, WAKE_LOCK, FOREGROUND_SERVICE, RECEIVE_BOOT_COMPLETED
-android.api = 23
+android.api = 34
 android.minapi = 23
 p4a.extra_args = --allow-minsdk-ndkapi-mismatch
 android.ndk = 27.3.13750724
