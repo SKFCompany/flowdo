@@ -7093,6 +7093,13 @@ class DailyTodoApp(MDApp):
         notif_manager = cast("android.app.NotificationManager",
                               ctx.getSystemService(Context.NOTIFICATION_SERVICE))
 
+        # Диагностика: разрешены ли уведомления для приложения вообще
+        try:
+            enabled = notif_manager.areNotificationsEnabled()
+            self._log_debug(f"  areNotificationsEnabled() = {enabled}")
+        except Exception as e:
+            self._log_debug(f"  areNotificationsEnabled() check failed: {e!r}")
+
         channel_id = "flowdo_reminders"
         if BuildVersion.SDK_INT >= 26:
             channel = NotificationChannel(
@@ -7101,6 +7108,14 @@ class DailyTodoApp(MDApp):
                 NotificationManager.IMPORTANCE_HIGH
             )
             notif_manager.createNotificationChannel(channel)
+            # Диагностика: проверяем созданный канал
+            try:
+                ch = notif_manager.getNotificationChannel(channel_id)
+                importance = ch.getImportance()
+                self._log_debug(f"  channel '{channel_id}' importance={importance} "
+                                f"(IMPORTANCE_NONE=0, MIN=1, LOW=2, DEFAULT=3, HIGH=4)")
+            except Exception as e:
+                self._log_debug(f"  channel check failed: {e!r}")
 
         if BuildVersion.SDK_INT >= 26:
             builder = NotificationBuilder(ctx, channel_id)
@@ -7109,21 +7124,32 @@ class DailyTodoApp(MDApp):
         builder.setContentTitle(cast("java.lang.CharSequence", String(title)))
         builder.setContentText(cast("java.lang.CharSequence", String(message)))
 
-        # Иконка: getApplicationInfo().icon может вернуть 0, что приводит
-        # к IllegalArgumentException в setSmallIcon -> используем системную
-        # иконку как надёжный фоллбэк
+        # Иконка: ВСЕГДА используем иконку нашего приложения (getApplicationInfo().icon).
+        # Системные иконки (android.R.drawable.*) принадлежат пакету "android" и
+        # могут быть проигнорированы NotificationManager на некоторых версиях —
+        # notify() не бросает исключение, но уведомление не показывается.
         icon_res = 0
         try:
             icon_res = ctx.getApplicationInfo().icon
-        except Exception:
-            pass
+            self._log_debug(f"  app icon resource id = {icon_res}")
+        except Exception as e:
+            self._log_debug(f"  getApplicationInfo().icon failed: {e!r}")
+        if not icon_res:
+            # Фоллбэк: mipmap/icon стандартного p4a шаблона
+            try:
+                resources = ctx.getResources()
+                pkg_name = ctx.getPackageName()
+                icon_res = resources.getIdentifier("icon", "mipmap", pkg_name)
+                self._log_debug(f"  fallback mipmap/icon id = {icon_res}")
+            except Exception as e:
+                self._log_debug(f"  mipmap fallback failed: {e!r}")
         if not icon_res:
             try:
-                # android.R.drawable.ic_dialog_info — всегда доступна в системе
                 Rdrawable = autoclass("android.R$drawable")
                 icon_res = Rdrawable.ic_dialog_info
+                self._log_debug(f"  using system ic_dialog_info = {icon_res}")
             except Exception:
-                icon_res = 17301659  # числовой fallback (ic_dialog_info на большинстве версий)
+                icon_res = 17301659
         builder.setSmallIcon(icon_res)
         builder.setAutoCancel(True)
         if BuildVersion.SDK_INT < 26:
@@ -7133,7 +7159,9 @@ class DailyTodoApp(MDApp):
 
         import time as _time
         notif_id = int(_time.time()) % 100000
-        notif_manager.notify(notif_id, builder.build())
+        notif = builder.build()
+        notif_manager.notify(notif_id, notif)
+        self._log_debug(f"  notify(id={notif_id}) called, icon_res={icon_res}")
 
     # ── Напоминания / уведомления по времени задачи ─────────────────────────
     # Сопоставление текста напоминания со смещением в минутах ДО времени задачи
@@ -7194,8 +7222,8 @@ class DailyTodoApp(MDApp):
             # 1) Уведомление в момент самого времени задачи
             key_time = f"{tid}:time:{date_s}_{time_s}"
             if key_time not in self._notified_keys:
-                # окно срабатывания: от момента до 2 минут после (т.к. проверка раз в 30с)
-                if task_dt <= now <= task_dt + _td(minutes=2):
+                # окно срабатывания: 5 минут после момента (с запасом на случай редких тиков Clock в фоне)
+                if task_dt <= now <= task_dt + _td(minutes=5):
                     self._log_debug(f"  -> firing TIME notification for '{title}'")
                     self._send_notification(f"Время задачи: {title}", "Flow·Do — Задача")
                     self._notified_keys.add(key_time)
@@ -7211,7 +7239,7 @@ class DailyTodoApp(MDApp):
                     f"diff_to_remind={(remind_dt-now)}, "
                     f"key_in_notified={key_remind in self._notified_keys}")
                 if key_remind not in self._notified_keys:
-                    if remind_dt <= now <= remind_dt + _td(minutes=2):
+                    if remind_dt <= now <= remind_dt + _td(minutes=5):
                         self._log_debug(f"  -> firing REMINDER notification for '{title}'")
                         self._send_notification(
                             f"Напоминание: {title} ({remind_s.lower()})",
