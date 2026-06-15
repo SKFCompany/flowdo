@@ -6848,11 +6848,13 @@ class DailyTodoApp(MDApp):
 
         self._load_config()
         self._apply_md_style()
+        self._log_debug("=== build() start ===")
         self.sm = MDScreenManager()
         if not self.user_name:
             self._build_welcome()
         else:
             self._build_main()
+        self._log_debug("build(): main UI built")
         # планировщик повторяющихся задач
         Clock.schedule_interval(self._check_repeating_tasks, 3600)
         Clock.schedule_once(self._check_repeating_tasks, 5)
@@ -6865,12 +6867,79 @@ class DailyTodoApp(MDApp):
         Clock.schedule_once(self._check_reminders, 3)
         # Запрашиваем разрешение на уведомления (КРИТИЧНО для Android 13+,
         # без него notify() ничего не делает и не выдаёт ошибку)
-        Clock.schedule_once(self._request_notification_permission, 0.5)
+        Clock.schedule_once(self._request_notification_permission, 1)
         # Запускаем фоновую службу для уведомлений когда приложение закрыто
-        Clock.schedule_once(self._start_notification_service, 1)
-        # Просим пользователя отключить оптимизацию батареи для надёжности
-        Clock.schedule_once(self._request_ignore_battery_opt, 2)
+        Clock.schedule_once(self._start_notification_service, 2)
+        # Просим пользователя отключить оптимизацию батареи — ОТЛОЖЕНО
+        # на 8 секунд, т.к. этот intent переключает фокус Activity и может
+        # вызвать сбой если запущен слишком рано (до готовности SDL2 окна)
+        Clock.schedule_once(self._request_ignore_battery_opt, 8)
+        self._log_debug("build(): scheduling done, returning sm")
         return self.sm
+
+    def _show_debug_log(self, *_):
+        """Показывает содержимое app_debug.log в диалоге — для отладки
+        уведомлений прямо на устройстве."""
+        from kivy.uix.modalview import ModalView
+        if PLATFORM == "android":
+            try:
+                from android.storage import app_storage_path
+                base = app_storage_path()
+            except Exception:
+                base = "."
+        else:
+            base = "."
+        path = os.path.join(base, "app_debug.log")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            # последние 60 строк
+            log_text = "".join(lines[-60:]) if lines else "(лог пуст)"
+        except Exception as e:
+            log_text = f"Файл лога не найден или ошибка: {e}\nПуть: {path}"
+
+        mv = ModalView(background_color=(0,0,0,0.6), auto_dismiss=True,
+                       size_hint=(0.95, 0.8),
+                       pos_hint={"center_x":0.5,"center_y":0.5})
+        card = MDCard(orientation="vertical", size_hint=(1,1),
+                      radius=[S(16)], elevation=8,
+                      md_bg_color=C["surf"], padding=[S(12),S(12)], spacing=S(8))
+        title_lbl = MDLabel(text="Debug-лог (последние записи)", font_style="H6", bold=True,
+                            theme_text_color="Custom", text_color=C["text"],
+                            halign="center", size_hint_y=None, height=S(32))
+        title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(title_lbl)
+
+        sv = ScrollView()
+        log_lbl = MDLabel(text=log_text, font_style="Caption",
+                          theme_text_color="Custom", text_color=C["text2"],
+                          halign="left", valign="top",
+                          size_hint_y=None)
+        log_lbl.bind(width=lambda w,wd: setattr(w,"text_size",(wd, None)))
+        log_lbl.bind(texture_size=lambda w,ts: setattr(w,"height", ts[1]))
+        sv.add_widget(log_lbl)
+        card.add_widget(sv)
+
+        btn_row = MDBoxLayout(orientation="horizontal", spacing=S(8),
+                              size_hint_y=None, height=S(44))
+        def _clear_log(*_):
+            try:
+                open(path, "w").close()
+            except Exception:
+                pass
+            mv.dismiss()
+            self._show_toast("Лог очищен")
+        clear_btn = MDRaisedButton(text="Очистить", md_bg_color=C["surf2"],
+                                    elevation=0, size_hint_x=1)
+        clear_btn.bind(on_release=_clear_log)
+        close_btn = MDRaisedButton(text="Закрыть", md_bg_color=C["accent"],
+                                    elevation=0, size_hint_x=1)
+        close_btn.bind(on_release=lambda *_: mv.dismiss())
+        btn_row.add_widget(clear_btn)
+        btn_row.add_widget(close_btn)
+        card.add_widget(btn_row)
+
+        mv.add_widget(card); mv.open()
 
     def _test_notification(self, *_):
         """Сразу отправляет тестовое уведомление — для проверки что
@@ -6903,7 +6972,9 @@ class DailyTodoApp(MDApp):
         if PLATFORM != "android":
             return
         if self.cfg_store.exists("battery_opt_asked"):
+            self._log_debug("_request_ignore_battery_opt: already asked, skip")
             return
+        self._log_debug("_request_ignore_battery_opt: start")
         try:
             from jnius import autoclass, cast
             PythonActivity = autoclass("org.kivy.android.PythonActivity")
@@ -6914,13 +6985,16 @@ class DailyTodoApp(MDApp):
             ctx = PythonActivity.mActivity
             pm = cast("android.os.PowerManager", ctx.getSystemService(Context.POWER_SERVICE))
             pkg = ctx.getPackageName()
-            if not pm.isIgnoringBatteryOptimizations(pkg):
+            already = pm.isIgnoringBatteryOptimizations(pkg)
+            self._log_debug(f"_request_ignore_battery_opt: pkg={pkg}, already_ignoring={already}")
+            if not already:
                 intent = Intent("android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
                 intent.setData(Uri.parse("package:" + pkg))
                 ctx.startActivity(intent)
+                self._log_debug("_request_ignore_battery_opt: startActivity called")
             self.cfg_store.put("battery_opt_asked", v=True)
-        except Exception:
-            pass
+        except Exception as e:
+            self._log_debug(f"_request_ignore_battery_opt: ERROR {e!r}")
 
     def _start_notification_service(self, *_):
         """Запускает фоновую службу (service/reminder.py), которая
@@ -6934,9 +7008,11 @@ class DailyTodoApp(MDApp):
             return
         if not getattr(self, "_service_enabled", True):
             return
+        self._log_debug("_start_notification_service: start")
         try:
             from jnius import autoclass, JavaException
-        except Exception:
+        except Exception as e:
+            self._log_debug(f"_start_notification_service: jnius import failed {e!r}")
             return
         # Сначала проверяем, существует ли класс службы вообще —
         # делаем это в отдельном try, чтобы не трогать Activity/Intent
@@ -6944,9 +7020,11 @@ class DailyTodoApp(MDApp):
         SERVICE_CLASS = "org.flowdo.flowdo.ServiceReminder"
         try:
             service = autoclass(SERVICE_CLASS)
-        except Exception:
+            self._log_debug(f"_start_notification_service: found class {SERVICE_CLASS}")
+        except Exception as e:
             # Служба не скомпилирована в этой сборке — отключаем
             # дальнейшие попытки и выходим без ошибок.
+            self._log_debug(f"_start_notification_service: class NOT FOUND {e!r}")
             self._service_enabled = False
             return
         try:
@@ -6955,8 +7033,9 @@ class DailyTodoApp(MDApp):
             Intent = autoclass("android.content.Intent")
             intent = Intent(mActivity.getApplicationContext(), service)
             mActivity.startService(intent)
-        except Exception:
-            pass
+            self._log_debug("_start_notification_service: startService() called OK")
+        except Exception as e:
+            self._log_debug(f"_start_notification_service: startService FAILED {e!r}")
 
     def _apply_md_style(self):
         self.theme_cls.theme_style = "Dark" if THEMES.get(self.theme_name,{}).get("dark") else "Light"
@@ -6980,17 +7059,21 @@ class DailyTodoApp(MDApp):
         (на Android 8+ уведомления без канала не показываются — plyer не
         создаёт канал на многих устройствах, поэтому notify() молча
         ничего не делает)."""
+        self._log_debug(f"_send_android_notification: title='{title}' message='{message}'")
         try:
             self._do_send_android_notification(title, message)
+            self._log_debug("  -> notify() OK")
         except Exception as e:
+            self._log_debug(f"  -> notify() FAILED: {e!r}")
             # Резервный вариант через plyer, на случай если NotificationManager
             # недоступен по какой-то причине
             if PLYER_OK:
                 try:
                     _plyer_notif.notify(title=title, message=message,
                                         app_name="FlowDo", timeout=5)
-                except Exception:
-                    pass
+                    self._log_debug("  -> plyer fallback OK")
+                except Exception as e2:
+                    self._log_debug(f"  -> plyer fallback FAILED: {e2!r}")
             if hasattr(self, "_show_toast"):
                 Clock.schedule_once(
                     lambda *_, err=str(e): self._show_toast(f"Notif error: {err}"), 0)
@@ -7061,12 +7144,33 @@ class DailyTodoApp(MDApp):
         "За 1 день": 60*24,
     }
 
+    def _log_debug(self, msg):
+        """Пишет диагностическое сообщение в файл app_debug.log в приватном
+        хранилище приложения — используется для отладки уведомлений на
+        устройстве, где недоступен logcat."""
+        try:
+            from datetime import datetime as _dt
+            if PLATFORM == "android":
+                try:
+                    from android.storage import app_storage_path
+                    base = app_storage_path()
+                except Exception:
+                    base = "."
+            else:
+                base = "."
+            path = os.path.join(base, "app_debug.log")
+            with open(path, "a", encoding="utf-8") as f:
+                f.write(f"{_dt.now()}: {msg}\n")
+        except Exception:
+            pass
+
     def _check_reminders(self, *_):
         """Проверяет все задачи раз в 30 секунд: если наступило время самой
         задачи или время напоминания — отправляет push-уведомление."""
         from datetime import datetime as _dt, timedelta as _td
         now = _dt.now()
         changed = False
+        self._log_debug(f"_check_reminders tick, tasks={len(self.tasks)}, now={now}")
         for t in self.tasks.values():
             if t.get("done"):
                 continue
@@ -7076,34 +7180,47 @@ class DailyTodoApp(MDApp):
                 continue
             try:
                 task_dt = _dt.strptime(f"{date_s} {time_s}", "%d.%m.%Y %H:%M")
-            except Exception:
+            except Exception as e:
+                self._log_debug(f"  task '{t.get('title','')}': bad date/time '{date_s} {time_s}': {e}")
                 continue
 
             tid = t.get("id","")
             title = t.get("title","Задача")
+            remind_s = t.get("reminder","")
+            self._log_debug(
+                f"  task '{title}': task_dt={task_dt}, reminder='{remind_s}', "
+                f"diff_to_task={(task_dt-now)}")
 
             # 1) Уведомление в момент самого времени задачи
             key_time = f"{tid}:time:{date_s}_{time_s}"
             if key_time not in self._notified_keys:
                 # окно срабатывания: от момента до 2 минут после (т.к. проверка раз в 30с)
                 if task_dt <= now <= task_dt + _td(minutes=2):
+                    self._log_debug(f"  -> firing TIME notification for '{title}'")
                     self._send_notification(f"Время задачи: {title}", "Flow·Do — Задача")
                     self._notified_keys.add(key_time)
                     changed = True
 
             # 2) Уведомление-напоминание заранее
-            remind_s = t.get("reminder","")
             offset = self._REMIND_OFFSETS.get(remind_s)
             if offset:
                 remind_dt = task_dt - _td(minutes=offset)
                 key_remind = f"{tid}:remind:{date_s}_{time_s}_{remind_s}"
+                self._log_debug(
+                    f"  task '{title}': remind_dt={remind_dt}, "
+                    f"diff_to_remind={(remind_dt-now)}, "
+                    f"key_in_notified={key_remind in self._notified_keys}")
                 if key_remind not in self._notified_keys:
                     if remind_dt <= now <= remind_dt + _td(minutes=2):
+                        self._log_debug(f"  -> firing REMINDER notification for '{title}'")
                         self._send_notification(
                             f"Напоминание: {title} ({remind_s.lower()})",
                             "Flow·Do — Напоминание")
                         self._notified_keys.add(key_remind)
                         changed = True
+            elif remind_s and remind_s != "Не выбрано":
+                self._log_debug(f"  task '{title}': unknown reminder value '{remind_s}' "
+                                f"(not in _REMIND_OFFSETS={list(self._REMIND_OFFSETS.keys())})")
 
         if changed:
             # сохраняем, чтобы не дублировать уведомления после перезапуска
@@ -8595,6 +8712,7 @@ class DailyTodoApp(MDApp):
             ("Резервная копия","content-save-outline",self._backup_restore),
             ("Импорт из текста","clipboard-text-outline",self.import_from_text),
             ("Тест уведомления","bell-ring-outline",self._test_notification),
+            ("Показать debug-лог","text-box-search-outline",self._show_debug_log),
             ("О приложении","information-outline",self._show_about)]:
             di.add_widget(self._sett_row(dico,dtxt,dcb))
         data_c.add_widget(di); inn.add_widget(data_c)
