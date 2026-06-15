@@ -1,29 +1,22 @@
 name: Build APK
-
 on: [push]
-
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-22.04
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
       - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-
       - name: Install system dependencies
         run: |
           sudo apt-get update
@@ -32,8 +25,11 @@ jobs:
             libffi-dev libssl-dev autoconf libtool \
             libltdl-dev zlib1g-dev wget \
             build-essential ccache
-          pip install buildozer cython==3.0.11
-
+          # ВАЖНО: версия buildozer >= 1.5.0 правильно передаёт
+          # --ndk-api из buildozer.spec в команду 'create' (раньше
+          # был хардкод --ndk-api=21 для create, что конфликтовало
+          # с --minsdk/--ndk-api=23 в команде 'apk')
+          pip install --upgrade "buildozer>=1.5.0" "python-for-android>=2024.1.21" cython==3.0.11
       - name: Accept Android SDK licenses
         run: |
           # Создаём симлинк который ищет buildozer
@@ -42,16 +38,13 @@ jobs:
             /usr/local/lib/android/sdk/tools/bin/sdkmanager
           sudo ln -sf /usr/local/lib/android/sdk/cmdline-tools/latest/bin/avdmanager \
             /usr/local/lib/android/sdk/tools/bin/avdmanager
-
           # Принимаем лицензии
           yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
             --licenses > /dev/null 2>&1 || true
-
           /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "platforms;android-33" \
             "build-tools;34.0.0"
-
       - name: Configure buildozer to use system SDK/NDK
         run: |
           # Создаём симлинки чтобы buildozer нашёл SDK/NDK
@@ -60,7 +53,6 @@ jobs:
             ~/.buildozer/android/platform/android-sdk
           ln -sf $ANDROID_NDK_HOME \
             ~/.buildozer/android/platform/android-ndk-r25b
-
           # Принимаем лицензии
           mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
           echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > \
@@ -69,7 +61,6 @@ jobs:
             ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
           echo "8933bad161af4178b1185d1a37fbf41ea5269c55" >> \
             ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-
       - name: Build APK
         env:
           ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -77,18 +68,15 @@ jobs:
           export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
           export PATH=$JAVA_HOME/bin:$PATH
           buildozer android debug 2>&1 | tee build.log || true
-
       - name: Show last 100 lines of log
         if: always()
         run: tail -200 build.log | grep -A5 -B5 -i "error\|exception\|failed\|traceback" || tail -200 build.log
-
       - name: Upload full log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: build-log
           path: build.log
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
