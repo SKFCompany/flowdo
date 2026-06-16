@@ -6870,10 +6870,8 @@ class DailyTodoApp(MDApp):
         Clock.schedule_once(self._request_notification_permission, 1)
         # Запускаем фоновую службу для уведомлений когда приложение закрыто
         Clock.schedule_once(self._start_notification_service, 2)
-        # Просим пользователя отключить оптимизацию батареи — ОТЛОЖЕНО
-        # на 8 секунд, т.к. этот intent переключает фокус Activity и может
-        # вызвать сбой если запущен слишком рано (до готовности SDL2 окна)
-        Clock.schedule_once(self._request_ignore_battery_opt, 8)
+        # Оптимизация батареи — НЕ запускаем автоматически (вызывает краш
+        # при загрузке SDL2), пользователь может включить через кнопку в настройках
         self._log_debug("build(): scheduling done, returning sm")
         return self.sm
 
@@ -8741,6 +8739,7 @@ class DailyTodoApp(MDApp):
             ("Импорт из текста","clipboard-text-outline",self.import_from_text),
             ("Тест уведомления","bell-ring-outline",self._test_notification),
             ("Показать debug-лог","text-box-search-outline",self._show_debug_log),
+            ("Фон: откл. батарею","battery-heart-outline",self._request_ignore_battery_opt),
             ("О приложении","information-outline",self._show_about)]:
             di.add_widget(self._sett_row(dico,dtxt,dcb))
         data_c.add_widget(di); inn.add_widget(data_c)
