@@ -1,21 +1,6 @@
 # ═══════════════════════════════════════════════════════════════════════════
-#  service/reminder.py
-#  Фоновая служба Android для Flow·Do.
-#
-#  Запускается из main.py через mActivity.startService(...).
-#  Работает в отдельном процессе/потоке, читает tasks.json и config.json
-#  из приватного хранилища приложения и шлёт push-уведомления через
-#  android.app.NotificationManager, даже если основное приложение закрыто.
-#
-#  ВАЖНО: этот файл должен лежать по пути  service/reminder.py
-#  относительно main.py, и в buildozer.spec должна быть строка:
-#
-#      services = Reminder:service/reminder.py
-#
-#  (имя "Reminder" — произвольное, но должно совпадать с тем, что
-#   указано в _start_notification_service в main.py через имя класса
-#   ServiceReminder — p4a генерирует имя класса из имени службы:
-#   "Reminder" -> "ServiceReminder")
+#  service/reminder.py  — Фоновая служба напоминаний Flow·Do
+#  p4a генерирует класс ServiceReminder из имени "Reminder" в buildozer.spec
 # ═══════════════════════════════════════════════════════════════════════════
 
 import json
@@ -23,26 +8,30 @@ import os
 import time
 from datetime import datetime, timedelta
 
-# ── Сопоставление текста напоминания со смещением в минутах ────────────────
 REMIND_OFFSETS = {
     "За 10 минут": 10,
     "За 30 минут": 30,
     "За 1 час": 60,
     "За 1 день": 60 * 24,
 }
-
-CHECK_INTERVAL_SEC = 30  # как часто проверять (секунды)
+CHECK_INTERVAL_SEC = 30
 
 
 def _get_storage_path():
-    """Путь к приватному хранилищу приложения — там же лежат tasks.json
-    и config.json, которые сохраняет основное приложение через JsonStore."""
     try:
         from android.storage import app_storage_path
         return app_storage_path()
     except Exception:
-        # Фоллбэк для отладки на десктопе
         return os.path.expanduser("~")
+
+
+def _log(msg):
+    try:
+        path = os.path.join(_get_storage_path(), "service_error.log")
+        with open(path, "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now()}: {msg}\n")
+    except Exception:
+        pass
 
 
 def _load_json(path):
@@ -61,10 +50,9 @@ def _save_json(path, data):
         pass
 
 
-def _start_foreground(title="Flow·Do", message="Проверка напоминаний..."):
-    """Переводит службу в foreground-режим с постоянным уведомлением.
-    Без этого Android (особенно 8+) убивает фоновую службу через
-    несколько минут после того как приложение свёрнуто/закрыто."""
+def _start_foreground():
+    """Переводит службу в foreground — без этого Android убивает её."""
+    _log("_start_foreground: start")
     try:
         from jnius import autoclass, cast
         PythonService = autoclass("org.kivy.android.PythonService")
@@ -79,23 +67,27 @@ def _start_foreground(title="Flow·Do", message="Проверка напомин
         ctx = service.getApplicationContext()
 
         channel_id = "flowdo_service"
+        notif_manager = cast("android.app.NotificationManager",
+                             ctx.getSystemService(Context.NOTIFICATION_SERVICE))
+
         if BuildVersion.SDK_INT >= 26:
-            notif_manager = cast(
-                "android.app.NotificationManager",
-                ctx.getSystemService(Context.NOTIFICATION_SERVICE)
-            )
             channel = NotificationChannel(
                 channel_id,
-                cast("java.lang.CharSequence", String("Flow\u00b7Do Служба")),
-                NotificationManager.IMPORTANCE_MIN
+                cast("java.lang.CharSequence", String("Flow\u00b7Do")),
+                NotificationManager.IMPORTANCE_LOW
             )
+            channel.setShowBadge(False)
             notif_manager.createNotificationChannel(channel)
             builder = NotificationBuilder(ctx, channel_id)
         else:
             builder = NotificationBuilder(ctx)
 
-        builder.setContentTitle(cast("java.lang.CharSequence", String(title)))
-        builder.setContentText(cast("java.lang.CharSequence", String(message)))
+        builder.setContentTitle(
+            cast("java.lang.CharSequence", String("Flow\u00b7Do")))
+        builder.setContentText(
+            cast("java.lang.CharSequence", String("Напоминания активны")))
+        builder.setOngoing(True)
+        builder.setAutoCancel(False)
 
         icon_res = 0
         try:
@@ -104,27 +96,33 @@ def _start_foreground(title="Flow·Do", message="Проверка напомин
             pass
         if not icon_res:
             try:
-                Rdrawable = autoclass("android.R$drawable")
-                icon_res = Rdrawable.ic_dialog_info
+                resources = ctx.getResources()
+                icon_res = resources.getIdentifier(
+                    "icon", "mipmap", ctx.getPackageName())
             except Exception:
-                icon_res = 17301659
+                pass
+        if not icon_res:
+            icon_res = 17301659  # ic_dialog_info fallback
         builder.setSmallIcon(icon_res)
 
-        # ID должен быть ненулевой
-        service.startForeground(1, builder.build())
+        if BuildVersion.SDK_INT < 26:
+            builder.setPriority(-2)  # PRIORITY_MIN
+
+        notif = builder.build()
+
+        if BuildVersion.SDK_INT >= 29:
+            # Android 10+ — startForeground с типом
+            service.startForeground(1, notif, 0x40000000)  # FOREGROUND_SERVICE_TYPE_SPECIAL_USE = 0x40000000
+        else:
+            service.startForeground(1, notif)
+
+        _log("_start_foreground: OK")
     except Exception as e:
-        try:
-            log_path = os.path.join(_get_storage_path(), "service_error.log")
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"{datetime.now()}: startForeground error: {e}\n")
-        except Exception:
-            pass
+        _log(f"_start_foreground: ERROR {e!r}")
 
 
 def _send_notification(title, message):
-    """Отправляет системное Android-уведомление напрямую через
-    NotificationManager (без plyer, т.к. plyer внутри Service иногда
-    некорректно инициализируется)."""
+    _log(f"_send_notification: '{title}'")
     try:
         from jnius import autoclass, cast
         PythonService = autoclass("org.kivy.android.PythonService")
@@ -132,19 +130,15 @@ def _send_notification(title, message):
         NotificationManager = autoclass("android.app.NotificationManager")
         NotificationChannel = autoclass("android.app.NotificationChannel")
         NotificationBuilder = autoclass("android.app.Notification$Builder")
-        Build = autoclass("android.os.Build")
         BuildVersion = autoclass("android.os.Build$VERSION")
         String = autoclass("java.lang.String")
 
         service = PythonService.mService
         ctx = service.getApplicationContext()
-        notif_manager = cast(
-            "android.app.NotificationManager",
-            ctx.getSystemService(Context.NOTIFICATION_SERVICE)
-        )
+        notif_manager = cast("android.app.NotificationManager",
+                             ctx.getSystemService(Context.NOTIFICATION_SERVICE))
 
         channel_id = "flowdo_reminders"
-        # Android 8+ требует канал уведомлений
         if BuildVersion.SDK_INT >= 26:
             channel = NotificationChannel(
                 channel_id,
@@ -152,17 +146,14 @@ def _send_notification(title, message):
                 NotificationManager.IMPORTANCE_HIGH
             )
             notif_manager.createNotificationChannel(channel)
-
-        if BuildVersion.SDK_INT >= 26:
             builder = NotificationBuilder(ctx, channel_id)
         else:
             builder = NotificationBuilder(ctx)
+
         builder.setContentTitle(cast("java.lang.CharSequence", String(title)))
         builder.setContentText(cast("java.lang.CharSequence", String(message)))
+        builder.setAutoCancel(True)
 
-        # Иконка: getApplicationInfo().icon может вернуть 0, что приводит
-        # к IllegalArgumentException в setSmallIcon -> используем системную
-        # иконку как надёжный фоллбэк
         icon_res = 0
         try:
             icon_res = ctx.getApplicationInfo().icon
@@ -170,35 +161,26 @@ def _send_notification(title, message):
             pass
         if not icon_res:
             try:
-                Rdrawable = autoclass("android.R$drawable")
-                icon_res = Rdrawable.ic_dialog_info
+                resources = ctx.getResources()
+                icon_res = resources.getIdentifier(
+                    "icon", "mipmap", ctx.getPackageName())
             except Exception:
-                icon_res = 17301659
+                pass
+        if not icon_res:
+            icon_res = 17301659
         builder.setSmallIcon(icon_res)
-        builder.setAutoCancel(True)
+
         if BuildVersion.SDK_INT < 26:
-            builder.setPriority(1)  # PRIORITY_HIGH (только для API < 26)
+            builder.setPriority(1)
 
         notif_id = int(time.time()) % 100000
         notif_manager.notify(notif_id, builder.build())
+        _log(f"_send_notification: notify(id={notif_id}) OK")
     except Exception as e:
-        # Логируем в файл для отладки (logcat иногда недоступен из службы)
-        try:
-            log_path = os.path.join(_get_storage_path(), "service_error.log")
-            with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"{datetime.now()}: notify error: {e}\n")
-        except Exception:
-            pass
+        _log(f"_send_notification: ERROR {e!r}")
 
 
 def _check_reminders(base_path, notified_keys):
-    """Проверяет tasks.json на предмет задач, время которых наступило,
-    и возвращает обновлённый set notified_keys.
-
-    Формат tasks.json (пишется через kivy.storage.jsonstore.JsonStore,
-    self.store.put("tasks", items=[...])):
-        {"tasks": {"items": [ {...task...}, {...task...} ]}}
-    """
     tasks_path = os.path.join(base_path, "tasks.json")
     data = _load_json(tasks_path)
 
@@ -210,6 +192,7 @@ def _check_reminders(base_path, notified_keys):
 
     now = datetime.now()
     changed = False
+    _log(f"_check_reminders: {len(items)} tasks, now={now}")
 
     for t in items:
         if not isinstance(t, dict) or t.get("done"):
@@ -226,26 +209,27 @@ def _check_reminders(base_path, notified_keys):
         tid = t.get("id", "")
         title = t.get("title", "Задача")
 
-        # 1) Уведомление в момент времени задачи
+        # 1) Уведомление в момент времени задачи (окно 5 минут)
         key_time = f"{tid}:time:{date_s}_{time_s}"
         if key_time not in notified_keys:
-            if task_dt <= now <= task_dt + timedelta(minutes=2):
+            if task_dt <= now <= task_dt + timedelta(minutes=5):
+                _log(f"  -> TIME notification: '{title}'")
                 _send_notification(f"Время задачи: {title}", "Flow\u00b7Do")
                 notified_keys.add(key_time)
                 changed = True
 
-        # 2) Уведомление-напоминание заранее
+        # 2) Напоминание заранее (окно 5 минут)
         remind_s = t.get("reminder", "")
         offset = REMIND_OFFSETS.get(remind_s)
         if offset:
             remind_dt = task_dt - timedelta(minutes=offset)
             key_remind = f"{tid}:remind:{date_s}_{time_s}_{remind_s}"
             if key_remind not in notified_keys:
-                if remind_dt <= now <= remind_dt + timedelta(minutes=2):
+                if remind_dt <= now <= remind_dt + timedelta(minutes=5):
+                    _log(f"  -> REMINDER notification: '{title}' ({remind_s})")
                     _send_notification(
-                        f"Напоминание: {title} ({remind_s.lower()})",
-                        "Flow\u00b7Do"
-                    )
+                        f"Напоминание: {title}",
+                        f"{remind_s} до {time_s}")
                     notified_keys.add(key_remind)
                     changed = True
 
@@ -256,30 +240,26 @@ def main():
     base_path = _get_storage_path()
     keys_path = os.path.join(base_path, "service_notified_keys.json")
 
-    # Переводим службу в foreground — без этого Android убивает её
-    # через несколько минут после закрытия приложения.
-    _start_foreground("Flow\u00b7Do", "Напоминания включены")
+    _log("=== Service started ===")
+    _start_foreground()
 
-    # Загружаем ранее отправленные уведомления (общие с основным приложением
-    # был бы идеал, но проще держать отдельный файл для службы)
     raw = _load_json(keys_path)
     notified_keys = set(raw.get("keys", [])) if isinstance(raw, dict) else set()
+    tick = 0
 
     while True:
         try:
             notified_keys, changed = _check_reminders(base_path, notified_keys)
             if changed:
-                # подчищаем старые записи, чтобы файл не рос бесконечно
                 if len(notified_keys) > 500:
                     notified_keys = set(list(notified_keys)[-300:])
                 _save_json(keys_path, {"keys": list(notified_keys)})
+            tick += 1
+            # Пишем heartbeat каждые 5 минут (10 тиков x 30с)
+            if tick % 10 == 0:
+                _log(f"heartbeat tick={tick}")
         except Exception as e:
-            try:
-                log_path = os.path.join(base_path, "service_error.log")
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(f"{datetime.now()}: loop error: {e}\n")
-            except Exception:
-                pass
+            _log(f"loop error: {e!r}")
 
         time.sleep(CHECK_INTERVAL_SEC)
 
