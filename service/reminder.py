@@ -26,10 +26,11 @@ def _get_storage_path():
 
 
 def _log(msg):
+    """Пишет в app_debug.log чтобы лог службы и приложения был в одном файле."""
     try:
-        path = os.path.join(_get_storage_path(), "service_error.log")
+        path = os.path.join(_get_storage_path(), "app_debug.log")
         with open(path, "a", encoding="utf-8") as f:
-            f.write(f"{datetime.now()}: {msg}\n")
+            f.write(f"[SVC] {datetime.now()}: {msg}\n")
     except Exception:
         pass
 
@@ -255,9 +256,9 @@ def main():
                     notified_keys = set(list(notified_keys)[-300:])
                 _save_json(keys_path, {"keys": list(notified_keys)})
             tick += 1
-            # Пишем heartbeat каждые 5 минут (10 тиков x 30с)
-            if tick % 10 == 0:
-                _log(f"heartbeat tick={tick}")
+            # Heartbeat каждые 2 минуты (4 тика x 30с)
+            if tick % 4 == 0:
+                _log(f"[SVC heartbeat] tick={tick}, alive at {time.strftime('%H:%M:%S')}")
         except Exception as e:
             _log(f"loop error: {e!r}")
 
