@@ -6891,10 +6891,10 @@ class DailyTodoApp(MDApp):
         try:
             with open(path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
-            # последние 60 строк
-            log_text = "".join(lines[-60:]) if lines else "(лог пуст)"
+            # последние 80 строк (служба и приложение в одном файле)
+            log_text = "".join(lines[-80:]) if lines else "(лог пуст)"
         except Exception as e:
-            log_text = f"Файл лога не найден или ошибка: {e}\nПуть: {path}"
+            log_text = f"Файл не найден: {e}\nПуть: {path}"
 
         mv = ModalView(background_color=(0,0,0,0.6), auto_dismiss=True,
                        size_hint=(0.95, 0.8),
@@ -6968,9 +6968,7 @@ class DailyTodoApp(MDApp):
         батареи — иначе Android может убивать фоновую службу и Kivy-таймер
         когда экран выключен, и уведомления не будут приходить."""
         if PLATFORM != "android":
-            return
-        if self.cfg_store.exists("battery_opt_asked"):
-            self._log_debug("_request_ignore_battery_opt: already asked, skip")
+            self._show_toast("Только на Android")
             return
         self._log_debug("_request_ignore_battery_opt: start")
         try:
@@ -6990,7 +6988,6 @@ class DailyTodoApp(MDApp):
                 intent.setData(Uri.parse("package:" + pkg))
                 ctx.startActivity(intent)
                 self._log_debug("_request_ignore_battery_opt: startActivity called")
-            self.cfg_store.put("battery_opt_asked", v=True)
         except Exception as e:
             self._log_debug(f"_request_ignore_battery_opt: ERROR {e!r}")
 
