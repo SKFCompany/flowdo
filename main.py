@@ -6119,8 +6119,14 @@ class TaskFormScreen(MDScreen):
         row.add_widget(val_lbl)
         row.add_widget(MDIconButton(icon="chevron-right", size_hint_x=None, width=S(24),
                                     theme_text_color="Custom", text_color=C["text2"]))
-        def _tap(w,t):
-            if row.collide_point(*t.pos): on_tap(); return True
+        _locked2 = [False]
+        def _tap(w, t):
+            if not row.collide_point(*t.pos): return False
+            if _locked2[0]: return True
+            _locked2[0] = True
+            Clock.schedule_once(lambda *_: _locked2.__setitem__(0, False), 1.5)
+            on_tap()
+            return True
         row.bind(on_touch_up=_tap)
         return row, val_lbl
 
@@ -8794,8 +8800,14 @@ class DailyTodoApp(MDApp):
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
         row.add_widget(MDIconButton(icon="chevron-right", size_hint_x=None, width=S(26),
                                     theme_text_color="Custom", text_color=C["text2"]))
-        def _tap(w,t):
-            if row.collide_point(*t.pos): on_tap(); return True
+        _locked = [False]
+        def _tap(w, t):
+            if not row.collide_point(*t.pos): return False
+            if _locked[0]: return True
+            _locked[0] = True
+            Clock.schedule_once(lambda *_: _locked.__setitem__(0, False), 1.5)
+            on_tap()
+            return True
         row.bind(on_touch_up=_tap)
         return row
 
@@ -8815,8 +8827,14 @@ class DailyTodoApp(MDApp):
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
         row.add_widget(MDIconButton(icon="chevron-right", size_hint_x=None, width=S(28),
                                     theme_text_color="Custom", text_color=C["text2"]))
-        def _tap(w,t):
-            if row.collide_point(*t.pos): on_tap(); return True
+        _locked2 = [False]
+        def _tap(w, t):
+            if not row.collide_point(*t.pos): return False
+            if _locked2[0]: return True
+            _locked2[0] = True
+            Clock.schedule_once(lambda *_: _locked2.__setitem__(0, False), 1.5)
+            on_tap()
+            return True
         row.bind(on_touch_up=_tap)
         sep=Widget(size_hint_y=None, height=S(1))
         def _dr(w,*_):
