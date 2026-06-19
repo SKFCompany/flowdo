@@ -6861,21 +6861,28 @@ class DailyTodoApp(MDApp):
         else:
             self._build_main()
         self._log_debug("build(): main UI built")
-        # планировщик повторяющихся задач
-        Clock.schedule_interval(self._check_repeating_tasks, 3600)
-        Clock.schedule_once(self._check_repeating_tasks, 5)
-        # планировщик напоминаний — проверка каждую минуту (работает пока
-        # приложение открыто/в фоне, плюс резервная фоновая служба ниже)
-        self._notified_keys = set()
-        if self.cfg_store.exists("notified_keys"):
-            self._notified_keys = set(self.cfg_store.get("notified_keys").get("list", []))
-        Clock.schedule_interval(self._check_reminders, 30)
-        Clock.schedule_once(self._check_reminders, 3)
-        # Запрашиваем разрешение на уведомления (КРИТИЧНО для Android 13+,
-        # без него notify() ничего не делает и не выдаёт ошибку)
-        Clock.schedule_once(self._request_notification_permission, 1)
-        # Запускаем фоновую службу для уведомлений когда приложение закрыто
-        Clock.schedule_once(self._start_notification_service, 2)
+        try:
+            # планировщик повторяющихся задач
+            Clock.schedule_interval(self._check_repeating_tasks, 3600)
+            Clock.schedule_once(self._check_repeating_tasks, 5)
+            # планировщик напоминаний — проверка каждую минуту (работает пока
+            # приложение открыто/в фоне, плюс резервная фоновая служба ниже)
+            self._notified_keys = set()
+            if self.cfg_store.exists("notified_keys"):
+                self._notified_keys = set(self.cfg_store.get("notified_keys").get("list", []))
+            Clock.schedule_interval(self._check_reminders, 30)
+            Clock.schedule_once(self._check_reminders, 3)
+            # Запрашиваем разрешение на уведомления (КРИТИЧНО для Android 13+,
+            # без него notify() ничего не делает и не выдаёт ошибку)
+            Clock.schedule_once(self._request_notification_permission, 1)
+            # Запускаем фоновую службу ТОЛЬКО если профиль уже создан —
+            # на самом первом запуске (welcome-экран) служба не нужна,
+            # и её ранний запуск может конфликтовать с инициализацией SDL2
+            if self.user_name:
+                Clock.schedule_once(self._start_notification_service, 2)
+            self._log_debug("build(): scheduling block completed OK")
+        except Exception as e:
+            self._log_debug(f"build(): scheduling block ERROR {e!r}")
         # Оптимизация батареи — НЕ запускаем автоматически (вызывает краш
         # при загрузке SDL2), пользователь может включить через кнопку в настройках
         self._log_debug("build(): scheduling done, returning sm")
@@ -6972,10 +6979,24 @@ class DailyTodoApp(MDApp):
     def _request_ignore_battery_opt(self, *_):
         """Просит пользователя добавить приложение в исключения оптимизации
         батареи — иначе Android может убивать фоновую службу и Kivy-таймер
-        когда экран выключен, и уведомления не будут приходить."""
+        когда экран выключен, и уведомления не будут приходить.
+
+        ВАЖНО: защита от повторных вызовов хранится в self (атрибут самого
+        приложения), а НЕ в локальной переменной виджета — иначе при
+        пересборке UI после возврата из системных настроек защита
+        обнуляется и startActivity может вызываться повторно по кругу,
+        что приводит к краху Activity."""
         if PLATFORM != "android":
             self._show_toast("Только на Android")
             return
+        # Защита уровня приложения — переживает пересборку любых виджетов
+        now_ts = time.time()
+        last_ts = getattr(self, "_battery_opt_last_call", 0)
+        if now_ts - last_ts < 3.0:
+            self._log_debug("_request_ignore_battery_opt: debounced, skip")
+            return
+        self._battery_opt_last_call = now_ts
+
         self._log_debug("_request_ignore_battery_opt: start")
         try:
             from jnius import autoclass, cast
@@ -6989,11 +7010,14 @@ class DailyTodoApp(MDApp):
             pkg = ctx.getPackageName()
             already = pm.isIgnoringBatteryOptimizations(pkg)
             self._log_debug(f"_request_ignore_battery_opt: pkg={pkg}, already_ignoring={already}")
-            if not already:
-                intent = Intent("android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
-                intent.setData(Uri.parse("package:" + pkg))
-                ctx.startActivity(intent)
-                self._log_debug("_request_ignore_battery_opt: startActivity called")
+            if already:
+                self._show_toast("Уже разрешено")
+                return
+            intent = Intent("android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
+            intent.setData(Uri.parse("package:" + pkg))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            ctx.startActivity(intent)
+            self._log_debug("_request_ignore_battery_opt: startActivity called")
         except Exception as e:
             self._log_debug(f"_request_ignore_battery_opt: ERROR {e!r}")
 
@@ -7448,6 +7472,9 @@ class DailyTodoApp(MDApp):
         self.user_name=name
         self._apply_md_style(); self._save_config()
         self._build_main(); self.sm.current="main"
+        # Профиль только что создан — теперь можно безопасно запустить
+        # фоновую службу уведомлений (на welcome-экране мы её не запускали)
+        Clock.schedule_once(self._start_notification_service, 2)
 
     # ── Главный экран ────────────────────────────────────────────────────────
     def _build_main(self):
