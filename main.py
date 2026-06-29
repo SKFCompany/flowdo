@@ -6977,49 +6977,11 @@ class DailyTodoApp(MDApp):
             pass
 
     def _request_ignore_battery_opt(self, *_):
-        """Просит пользователя добавить приложение в исключения оптимизации
-        батареи — иначе Android может убивать фоновую службу и Kivy-таймер
-        когда экран выключен, и уведомления не будут приходить.
+        """Показывает инструкцию по ручному отключению оптимизации батареи.
+        НЕ открываем системный экран автоматически — это вызывало краш."""
+        self._show_toast(
+            "Настройки → Приложения → FlowDo → Батарея → Без ограничений")
 
-        ВАЖНО: защита от повторных вызовов хранится в self (атрибут самого
-        приложения), а НЕ в локальной переменной виджета — иначе при
-        пересборке UI после возврата из системных настроек защита
-        обнуляется и startActivity может вызываться повторно по кругу,
-        что приводит к краху Activity."""
-        if PLATFORM != "android":
-            self._show_toast("Только на Android")
-            return
-        # Защита уровня приложения — переживает пересборку любых виджетов
-        now_ts = time.time()
-        last_ts = getattr(self, "_battery_opt_last_call", 0)
-        if now_ts - last_ts < 3.0:
-            self._log_debug("_request_ignore_battery_opt: debounced, skip")
-            return
-        self._battery_opt_last_call = now_ts
-
-        self._log_debug("_request_ignore_battery_opt: start")
-        try:
-            from jnius import autoclass, cast
-            PythonActivity = autoclass("org.kivy.android.PythonActivity")
-            Intent = autoclass("android.content.Intent")
-            Uri = autoclass("android.net.Uri")
-            PowerManager = autoclass("android.os.PowerManager")
-            Context = autoclass("android.content.Context")
-            ctx = PythonActivity.mActivity
-            pm = cast("android.os.PowerManager", ctx.getSystemService(Context.POWER_SERVICE))
-            pkg = ctx.getPackageName()
-            already = pm.isIgnoringBatteryOptimizations(pkg)
-            self._log_debug(f"_request_ignore_battery_opt: pkg={pkg}, already_ignoring={already}")
-            if already:
-                self._show_toast("Уже разрешено")
-                return
-            intent = Intent("android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS")
-            intent.setData(Uri.parse("package:" + pkg))
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            ctx.startActivity(intent)
-            self._log_debug("_request_ignore_battery_opt: startActivity called")
-        except Exception as e:
-            self._log_debug(f"_request_ignore_battery_opt: ERROR {e!r}")
 
     def _start_notification_service(self, *_):
         """Запускает фоновую службу (service/reminder.py), которая
@@ -7059,6 +7021,12 @@ class DailyTodoApp(MDApp):
             intent = Intent(mActivity.getApplicationContext(), service)
             mActivity.startService(intent)
             self._log_debug("_start_notification_service: startService() called OK")
+            # Логируем путь к файлу чтобы служба могла в него же писать
+            try:
+                from android.storage import app_storage_path
+                self._log_debug(f"_start_notification_service: storage_path={app_storage_path()}")
+            except Exception as ep:
+                self._log_debug(f"_start_notification_service: storage_path ERROR {ep!r}")
         except Exception as e:
             self._log_debug(f"_start_notification_service: startService FAILED {e!r}")
 
@@ -7248,7 +7216,7 @@ class DailyTodoApp(MDApp):
             key_time = f"{tid}:time:{date_s}_{time_s}"
             if key_time not in self._notified_keys:
                 # окно срабатывания: 5 минут после момента (с запасом на случай редких тиков Clock в фоне)
-                if task_dt <= now <= task_dt + _td(minutes=5):
+                if task_dt <= now <= task_dt + _td(minutes=60):
                     self._log_debug(f"  -> firing TIME notification for '{title}'")
                     self._send_notification(f"Время задачи: {title}", "Flow·Do — Задача")
                     self._notified_keys.add(key_time)
@@ -7264,7 +7232,7 @@ class DailyTodoApp(MDApp):
                     f"diff_to_remind={(remind_dt-now)}, "
                     f"key_in_notified={key_remind in self._notified_keys}")
                 if key_remind not in self._notified_keys:
-                    if remind_dt <= now <= remind_dt + _td(minutes=5):
+                    if remind_dt <= now <= remind_dt + _td(minutes=60):
                         self._log_debug(f"  -> firing REMINDER notification for '{title}'")
                         self._send_notification(
                             f"Напоминание: {title} ({remind_s.lower()})",
@@ -8769,7 +8737,7 @@ class DailyTodoApp(MDApp):
             ("Импорт из текста","clipboard-text-outline",self.import_from_text),
             ("Тест уведомления","bell-ring-outline",self._test_notification),
             ("Показать debug-лог","text-box-search-outline",self._show_debug_log),
-            ("Фон: откл. батарею","battery-heart-outline",self._request_ignore_battery_opt),
+
             ("О приложении","information-outline",self._show_about)]:
             di.add_widget(self._sett_row(dico,dtxt,dcb))
         data_c.add_widget(di); inn.add_widget(data_c)
