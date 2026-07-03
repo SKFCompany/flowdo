@@ -1,11 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Точные будильники через AlarmManager (обязательно для Android 12+) -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- Android 13+: USE_EXACT_ALARM не требует разрешения пользователя -->
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
-    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application>
+        <!--
+            Служба напоминаний. Запускается двумя способами:
+            1) Прямым startService из приложения (loop-режим)
+            2) AlarmManager через PendingIntent.getForegroundService (alarm-режим)
+            stopWithTask="false" — продолжает работать после свайпа из Recent
+        -->
         <service
             android:name="org.flowdo.flowdo.ServiceReminder"
             android:exported="false"
@@ -15,5 +27,6 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="reminder_notifications" />
         </service>
+
     </application>
 </manifest>
