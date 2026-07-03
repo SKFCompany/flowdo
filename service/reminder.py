@@ -1,4 +1,10 @@
-# service/reminder.py — Flow·Do background reminder service
+# service/reminder.py — Flow·Do фоновая служба + обработчик AlarmManager
+#
+# Два режима работы:
+# 1) Запуск от AlarmManager (Intent с action SHOW_NOTIFICATION):
+#    → немедленно показывает уведомление и завершает работу
+# 2) Прямой запуск из приложения (startService без action):
+#    → входит в цикл проверки задач каждые 30 секунд
 
 import json
 import os
@@ -47,13 +53,64 @@ def _save_json(path, data):
         pass
 
 
-def _build_notification(ctx, channel_id, title, message, ongoing=False):
-    """Строит Notification объект. Возвращает (notification, icon_res) или (None, 0)."""
+def _get_service_and_ctx():
+    from jnius import autoclass, cast
+    PythonService = autoclass("org.kivy.android.PythonService")
+    service = PythonService.mService
+    ctx = service.getApplicationContext()
+    return service, ctx
+
+
+def _ensure_channel(ctx, channel_id, name_str, importance):
     try:
         from jnius import autoclass, cast
+        BuildVersion = autoclass("android.os.Build$VERSION")
+        if BuildVersion.SDK_INT < 26:
+            return
+        NotificationManager = autoclass("android.app.NotificationManager")
+        NotificationChannel = autoclass("android.app.NotificationChannel")
+        Context = autoclass("android.content.Context")
+        String = autoclass("java.lang.String")
+        nm = cast("android.app.NotificationManager",
+                  ctx.getSystemService(Context.NOTIFICATION_SERVICE))
+        ch = NotificationChannel(channel_id,
+                                 cast("java.lang.CharSequence",
+                                      String(name_str)),
+                                 importance)
+        nm.createNotificationChannel(ch)
+    except Exception as e:
+        _log(f"_ensure_channel error: {e!r}")
+
+
+def _get_icon(ctx):
+    icon_res = 0
+    try:
+        icon_res = ctx.getApplicationInfo().icon
+    except Exception:
+        pass
+    if not icon_res:
+        try:
+            icon_res = ctx.getResources().getIdentifier(
+                "icon", "mipmap", ctx.getPackageName())
+        except Exception:
+            pass
+    return icon_res or 17301659
+
+
+def _show_notification(ctx, title, message, channel_id="flowdo_reminders"):
+    """Показывает системное push-уведомление."""
+    _log(f"_show_notification: '{title}'")
+    try:
+        from jnius import autoclass, cast
+        Context = autoclass("android.content.Context")
+        NotificationManager = autoclass("android.app.NotificationManager")
         NotificationBuilder = autoclass("android.app.Notification$Builder")
         BuildVersion = autoclass("android.os.Build$VERSION")
         String = autoclass("java.lang.String")
+
+        _ensure_channel(ctx, channel_id,
+                        "Flow\u00b7Do \u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u044f",
+                        4)  # IMPORTANCE_HIGH
 
         if BuildVersion.SDK_INT >= 26:
             builder = NotificationBuilder(ctx, channel_id)
@@ -62,147 +119,106 @@ def _build_notification(ctx, channel_id, title, message, ongoing=False):
 
         builder.setContentTitle(cast("java.lang.CharSequence", String(title)))
         builder.setContentText(cast("java.lang.CharSequence", String(message)))
-        builder.setAutoCancel(not ongoing)
-        if ongoing:
-            builder.setOngoing(True)
-
-        # Иконка
-        icon_res = 0
-        try:
-            icon_res = ctx.getApplicationInfo().icon
-        except Exception:
-            pass
-        if not icon_res:
-            try:
-                icon_res = ctx.getResources().getIdentifier(
-                    "icon", "mipmap", ctx.getPackageName())
-            except Exception:
-                pass
-        if not icon_res:
-            icon_res = 17301659  # ic_dialog_info
-        builder.setSmallIcon(icon_res)
-
+        builder.setSmallIcon(_get_icon(ctx))
+        builder.setAutoCancel(True)
         if BuildVersion.SDK_INT < 26:
-            builder.setPriority(-2 if ongoing else 1)
-
-        return builder.build(), icon_res
-    except Exception as e:
-        _log(f"_build_notification error: {e!r}")
-        return None, 0
-
-
-def _ensure_channel(ctx, channel_id, name, importance):
-    try:
-        from jnius import autoclass, cast
-        NotificationManager = autoclass("android.app.NotificationManager")
-        NotificationChannel = autoclass("android.app.NotificationChannel")
-        BuildVersion = autoclass("android.os.Build$VERSION")
-        String = autoclass("java.lang.String")
-        Context = autoclass("android.content.Context")
-
-        if BuildVersion.SDK_INT >= 26:
-            nm = cast("android.app.NotificationManager",
-                      ctx.getSystemService(Context.NOTIFICATION_SERVICE))
-            ch = NotificationChannel(channel_id,
-                                     cast("java.lang.CharSequence", String(name)),
-                                     importance)
-            nm.createNotificationChannel(ch)
-    except Exception as e:
-        _log(f"_ensure_channel error: {e!r}")
-
-
-def _start_foreground():
-    """Переводит службу в foreground. Пробуем несколько вариантов
-    startForeground для совместимости с разными версиями Android."""
-    _log("_start_foreground: begin")
-    try:
-        from jnius import autoclass, cast
-        PythonService = autoclass("org.kivy.android.PythonService")
-        BuildVersion = autoclass("android.os.Build$VERSION")
-        service = PythonService.mService
-        ctx = service.getApplicationContext()
-
-        _ensure_channel(ctx, "flowdo_service",
-                        "Flow\u00b7Do \u0421\u043b\u0443\u0436\u0431\u0430",
-                        2)  # IMPORTANCE_LOW = 2
-
-        notif, icon_res = _build_notification(
-            ctx, "flowdo_service",
-            "Flow\u00b7Do",
-            "\u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u044f \u0430\u043a\u0442\u0438\u0432\u043d\u044b",
-            ongoing=True)
-
-        if notif is None:
-            _log("_start_foreground: notification build failed, skip")
-            return
-
-        sdk = BuildVersion.SDK_INT
-        _log(f"_start_foreground: sdk={sdk}, icon={icon_res}")
-
-        if sdk >= 34:
-            # Android 14+: требует тип сервиса
-            # FOREGROUND_SERVICE_TYPE_SPECIAL_USE = 0x40000000
-            try:
-                service.startForeground(1, notif, 0x40000000)
-                _log("_start_foreground: startForeground(1, notif, SPECIAL_USE) OK")
-                return
-            except Exception as e:
-                _log(f"_start_foreground: SPECIAL_USE failed: {e!r}, trying without type")
-
-        # Android 9-13 и fallback для 14+
-        try:
-            service.startForeground(1, notif)
-            _log("_start_foreground: startForeground(1, notif) OK")
-        except Exception as e:
-            _log(f"_start_foreground: simple startForeground failed: {e!r}")
-
-    except Exception as e:
-        _log(f"_start_foreground: OUTER ERROR {e!r}")
-
-
-def _send_notification(title, message):
-    _log(f"_send_notification: '{title}'")
-    try:
-        from jnius import autoclass, cast
-        PythonService = autoclass("org.kivy.android.PythonService")
-        Context = autoclass("android.content.Context")
-        NotificationManager = autoclass("android.app.NotificationManager")
-        BuildVersion = autoclass("android.os.Build$VERSION")
-
-        service = PythonService.mService
-        ctx = service.getApplicationContext()
-
-        _ensure_channel(ctx, "flowdo_reminders",
-                        "Flow\u00b7Do \u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u044f",
-                        4)  # IMPORTANCE_HIGH = 4
-
-        notif, _ = _build_notification(ctx, "flowdo_reminders", title, message)
-        if notif is None:
-            _log("_send_notification: build failed")
-            return
+            builder.setPriority(1)
 
         nm = cast("android.app.NotificationManager",
                   ctx.getSystemService(Context.NOTIFICATION_SERVICE))
         notif_id = int(time.time()) % 100000
-        nm.notify(notif_id, notif)
-        _log(f"_send_notification: notify(id={notif_id}) OK")
+        nm.notify(notif_id, builder.build())
+        _log(f"_show_notification: notify(id={notif_id}) OK")
     except Exception as e:
-        _log(f"_send_notification: ERROR {e!r}")
+        _log(f"_show_notification ERROR: {e!r}")
 
 
-def _check_reminders(base_path, notified_keys):
+def _start_foreground_minimal(service, ctx):
+    """Минимальное foreground-уведомление чтобы служба не была убита."""
+    try:
+        from jnius import autoclass, cast
+        BuildVersion = autoclass("android.os.Build$VERSION")
+        NotificationBuilder = autoclass("android.app.Notification$Builder")
+        String = autoclass("java.lang.String")
+
+        _ensure_channel(ctx, "flowdo_service",
+                        "Flow\u00b7Do", 2)  # IMPORTANCE_LOW
+
+        if BuildVersion.SDK_INT >= 26:
+            builder = NotificationBuilder(ctx, "flowdo_service")
+        else:
+            builder = NotificationBuilder(ctx)
+
+        builder.setContentTitle(
+            cast("java.lang.CharSequence",
+                 String("Flow\u00b7Do")))
+        builder.setContentText(
+            cast("java.lang.CharSequence",
+                 String("\u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u044f \u0430\u043a\u0442\u0438\u0432\u043d\u044b")))
+        builder.setSmallIcon(_get_icon(ctx))
+        builder.setOngoing(True)
+        if BuildVersion.SDK_INT < 26:
+            builder.setPriority(-2)
+
+        notif = builder.build()
+        if BuildVersion.SDK_INT >= 29:
+            try:
+                service.startForeground(1, notif, 0x40000000)
+            except Exception:
+                service.startForeground(1, notif)
+        else:
+            service.startForeground(1, notif)
+        _log("_start_foreground_minimal: OK")
+    except Exception as e:
+        _log(f"_start_foreground_minimal ERROR: {e!r}")
+
+
+def _handle_alarm_intent(service):
+    """Обрабатывает запуск от AlarmManager — показывает уведомление
+    и завершает работу службы. Возвращает True если это был alarm-запуск."""
+    try:
+        intent = service.getIntent()
+        if intent is None:
+            return False
+        action = intent.getAction()
+        if action != "org.flowdo.flowdo.SHOW_NOTIFICATION":
+            return False
+
+        _log(f"_handle_alarm_intent: action={action}")
+        ctx = service.getApplicationContext()
+
+        title   = intent.getStringExtra("notif_title") or "Flow\u00b7Do"
+        message = intent.getStringExtra("notif_text")  or ""
+
+        # Нужен brief foreground чтобы Android разрешил показать уведомление
+        _start_foreground_minimal(service, ctx)
+        _show_notification(ctx, title, message)
+
+        # Останавливаем службу — задача выполнена
+        try:
+            service.stopSelf()
+        except Exception:
+            pass
+        return True
+    except Exception as e:
+        _log(f"_handle_alarm_intent ERROR: {e!r}")
+        return False
+
+
+def _check_reminders_loop(base_path, notified_keys, service, ctx):
+    """Основной цикл проверки — для прямого запуска службы."""
     tasks_path = os.path.join(base_path, "tasks.json")
     data = _load_json(tasks_path)
 
     items = []
     if isinstance(data, dict):
-        tasks_section = data.get("tasks", {})
-        if isinstance(tasks_section, dict):
-            items = tasks_section.get("items", [])
+        sect = data.get("tasks", {})
+        if isinstance(sect, dict):
+            items = sect.get("items", [])
 
     now = datetime.now()
     changed = False
-    _log(f"_check_reminders: {len(items)} tasks at {now.strftime('%H:%M:%S')}")
+    _log(f"_check_reminders_loop: {len(items)} tasks at {now.strftime('%H:%M:%S')}")
 
     for t in items:
         if not isinstance(t, dict) or t.get("done"):
@@ -219,27 +235,25 @@ def _check_reminders(base_path, notified_keys):
         tid   = t.get("id", "")
         title = t.get("title", "\u0417\u0430\u0434\u0430\u0447\u0430")
 
-        # 1) Время самой задачи (окно 5 мин)
         key_t = f"{tid}:time:{date_s}_{time_s}"
         if key_t not in notified_keys:
-            if task_dt <= now <= task_dt + timedelta(minutes=5):
+            if task_dt <= now <= task_dt + timedelta(minutes=60):
                 _log(f"  -> TIME: '{title}'")
-                _send_notification(
+                _show_notification(ctx,
                     f"\u0412\u0440\u0435\u043c\u044f \u0437\u0430\u0434\u0430\u0447\u0438: {title}",
                     "Flow\u00b7Do")
                 notified_keys.add(key_t)
                 changed = True
 
-        # 2) Напоминание заранее (окно 5 мин)
         remind_s = t.get("reminder", "")
-        offset   = REMIND_OFFSETS.get(remind_s)
+        offset = REMIND_OFFSETS.get(remind_s)
         if offset:
             remind_dt = task_dt - timedelta(minutes=offset)
             key_r = f"{tid}:remind:{date_s}_{time_s}_{remind_s}"
             if key_r not in notified_keys:
-                if remind_dt <= now <= remind_dt + timedelta(minutes=5):
+                if remind_dt <= now <= remind_dt + timedelta(minutes=60):
                     _log(f"  -> REMIND: '{title}' ({remind_s})")
-                    _send_notification(
+                    _show_notification(ctx,
                         f"\u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u0435: {title}",
                         f"{remind_s} \u0434\u043e {time_s}")
                     notified_keys.add(key_r)
@@ -249,30 +263,41 @@ def _check_reminders(base_path, notified_keys):
 
 
 def main():
+    _log("=== Service main() START ===")
+    try:
+        service, ctx = _get_service_and_ctx()
+    except Exception as e:
+        _log(f"FATAL: cannot get service context: {e!r}")
+        return
+
+    # Режим 1: запущены от AlarmManager — показать уведомление и выйти
+    if _handle_alarm_intent(service):
+        _log("=== Service done (alarm mode) ===")
+        return
+
+    # Режим 2: прямой запуск — войти в цикл проверки
+    _log("=== Service loop mode ===")
+    _start_foreground_minimal(service, ctx)
+
     base_path = _get_storage_path()
     keys_path = os.path.join(base_path, "service_notified_keys.json")
-
-    _log("=== Service main() START ===")
-    _start_foreground()
-    _log("=== After startForeground ===")
-
     raw = _load_json(keys_path)
     notified_keys = set(raw.get("keys", [])) if isinstance(raw, dict) else set()
     tick = 0
 
     while True:
         try:
-            notified_keys, changed = _check_reminders(base_path, notified_keys)
+            notified_keys, changed = _check_reminders_loop(
+                base_path, notified_keys, service, ctx)
             if changed:
                 if len(notified_keys) > 500:
                     notified_keys = set(list(notified_keys)[-300:])
                 _save_json(keys_path, {"keys": list(notified_keys)})
             tick += 1
-            if tick % 4 == 0:  # каждые 2 минуты
+            if tick % 4 == 0:
                 _log(f"heartbeat tick={tick} at {time.strftime('%H:%M:%S')}")
         except Exception as e:
             _log(f"loop error: {e!r}")
-
         time.sleep(CHECK_INTERVAL_SEC)
 
 
