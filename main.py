@@ -6963,18 +6963,46 @@ class DailyTodoApp(MDApp):
 
     def _request_notification_permission(self, *_):
         """Android 13+ (API 33) требует runtime-разрешение POST_NOTIFICATIONS.
-        Без него NotificationManager.notify() молча игнорируется."""
+        Без него NotificationManager.notify() молча игнорируется.
+        Также запрашиваем SCHEDULE_EXACT_ALARM для AlarmManager точных будильников."""
         if PLATFORM != "android":
             return
         try:
             from android.permissions import request_permissions, Permission, check_permission
-            perm = getattr(Permission, "POST_NOTIFICATIONS", None)
-            if perm is None:
-                return  # старая версия plyer/android, разрешение не нужно (API < 33)
-            if not check_permission(perm):
-                request_permissions([perm])
+            perms_to_request = []
+            # POST_NOTIFICATIONS (Android 13+)
+            perm_notif = getattr(Permission, "POST_NOTIFICATIONS", None)
+            if perm_notif and not check_permission(perm_notif):
+                perms_to_request.append(perm_notif)
+            if perms_to_request:
+                request_permissions(perms_to_request)
         except Exception:
             pass
+
+        # SCHEDULE_EXACT_ALARM требует отдельного системного экрана на Android 12+
+        # Проверяем тихо — если нет доступа, просто используем setWindow вместо setExact
+        if PLATFORM == "android":
+            try:
+                from jnius import autoclass, cast
+                BuildVersion = autoclass("android.os.Build$VERSION")
+                if BuildVersion.SDK_INT >= 31:  # Android 12+
+                    AlarmManager = autoclass("android.app.AlarmManager")
+                    Context = autoclass("android.content.Context")
+                    PythonActivity = autoclass("org.kivy.android.PythonActivity")
+                    ctx = PythonActivity.mActivity.getApplicationContext()
+                    am = cast("android.app.AlarmManager",
+                              ctx.getSystemService(Context.ALARM_SERVICE))
+                    can_schedule = am.canScheduleExactAlarms()
+                    self._log_debug(f"canScheduleExactAlarms={can_schedule}")
+                    self._can_schedule_exact = can_schedule
+                    if not can_schedule:
+                        # Показываем тост с инструкцией
+                        self._show_toast(
+                            "Для точных уведомлений: Настройки → Приложения → "
+                            "FlowDo → Будильники и напоминания → Разрешить")
+            except Exception as e:
+                self._log_debug(f"_check_exact_alarm: {e!r}")
+                self._can_schedule_exact = True  # assume OK on older Android
 
     def _request_ignore_battery_opt(self, *_):
         """Показывает инструкцию по ручному отключению оптимизации батареи.
@@ -6984,51 +7012,138 @@ class DailyTodoApp(MDApp):
 
 
     def _start_notification_service(self, *_):
-        """Запускает фоновую службу (service/reminder.py), которая
-        продолжает проверять время задач и слать уведомления даже когда
-        приложение полностью закрыто (свайпом из списка задач).
-
-        ВАЖНО: если служба не добавлена в buildozer.spec (services = ...),
-        класс ServiceReminder не существует в APK — в этом случае просто
-        тихо выходим, не мешая работе остальной части приложения."""
+        """Планирует AlarmManager будильник для фоновых уведомлений.
+        AlarmManager — системный планировщик Android, он работает
+        даже когда приложение убито и не требует фонового процесса."""
         if PLATFORM != "android":
             return
-        if not getattr(self, "_service_enabled", True):
-            return
-        self._log_debug("_start_notification_service: start")
+        self._log_debug("_start_notification_service: scheduling alarms")
         try:
-            from jnius import autoclass, JavaException
+            self._schedule_task_alarms()
         except Exception as e:
-            self._log_debug(f"_start_notification_service: jnius import failed {e!r}")
-            return
-        # Сначала проверяем, существует ли класс службы вообще —
-        # делаем это в отдельном try, чтобы не трогать Activity/Intent
-        # если класса нет.
-        SERVICE_CLASS = "org.flowdo.flowdo.ServiceReminder"
-        try:
-            service = autoclass(SERVICE_CLASS)
-            self._log_debug(f"_start_notification_service: found class {SERVICE_CLASS}")
-        except Exception as e:
-            # Служба не скомпилирована в этой сборке — отключаем
-            # дальнейшие попытки и выходим без ошибок.
-            self._log_debug(f"_start_notification_service: class NOT FOUND {e!r}")
-            self._service_enabled = False
-            return
-        try:
-            PythonActivity = autoclass("org.kivy.android.PythonActivity")
-            mActivity = PythonActivity.mActivity
-            Intent = autoclass("android.content.Intent")
-            intent = Intent(mActivity.getApplicationContext(), service)
-            mActivity.startService(intent)
-            self._log_debug("_start_notification_service: startService() called OK")
-            # Логируем путь к файлу чтобы служба могла в него же писать
+            self._log_debug(f"_start_notification_service ERROR: {e!r}")
+
+    def _schedule_task_alarms(self):
+        """Планирует точные Android-будильники через AlarmManager для каждой
+        задачи с временем и/или напоминанием. Будильники будят PythonActivity
+        которое показывает уведомление — работает при закрытом приложении."""
+        from jnius import autoclass, cast
+        from datetime import datetime as _dt, timedelta as _td
+
+        PythonActivity = autoclass("org.kivy.android.PythonActivity")
+        Context = autoclass("android.content.Context")
+        AlarmManager = autoclass("android.app.AlarmManager")
+        Intent = autoclass("android.content.Intent")
+        PendingIntent = autoclass("android.app.PendingIntent")
+        BuildVersion = autoclass("android.os.Build$VERSION")
+        String = autoclass("java.lang.String")
+
+        ctx = PythonActivity.mActivity.getApplicationContext()
+        am = cast("android.app.AlarmManager",
+                  ctx.getSystemService(Context.ALARM_SERVICE))
+
+        now = _dt.now()
+        alarms_set = 0
+
+        for t in self.tasks.values():
+            if t.get("done"):
+                continue
+            date_s = t.get("date", "")
+            time_s = t.get("time", "")
+            if not date_s or not time_s:
+                continue
             try:
-                from android.storage import app_storage_path
-                self._log_debug(f"_start_notification_service: storage_path={app_storage_path()}")
-            except Exception as ep:
-                self._log_debug(f"_start_notification_service: storage_path ERROR {ep!r}")
+                task_dt = _dt.strptime(f"{date_s} {time_s}", "%d.%m.%Y %H:%M")
+            except Exception:
+                continue
+
+            tid = t.get("id", "")
+            title = t.get("title", "Задача")
+            remind_s = t.get("reminder", "")
+
+            # Планируем будильник для времени задачи
+            if task_dt > now:
+                self._set_alarm(am, ctx, Intent, PendingIntent, BuildVersion,
+                                task_dt, tid, "time",
+                                f"Время задачи: {title}", "Flow·Do — Задача")
+                alarms_set += 1
+
+            # Планируем будильник для напоминания
+            offset = {"За 10 минут": 10, "За 30 минут": 30,
+                      "За 1 час": 60, "За 1 день": 60*24}.get(remind_s)
+            if offset:
+                remind_dt = task_dt - _td(minutes=offset)
+                if remind_dt > now:
+                    self._set_alarm(am, ctx, Intent, PendingIntent, BuildVersion,
+                                    remind_dt, tid, "remind",
+                                    f"Напоминание: {title} ({remind_s})",
+                                    "Flow·Do — Напоминание")
+                    alarms_set += 1
+
+        self._log_debug(f"_schedule_task_alarms: set {alarms_set} alarms")
+
+    def _set_alarm(self, am, ctx, Intent, PendingIntent, BuildVersion,
+                   trigger_dt, tid, alarm_type, msg_title, msg_text):
+        """Устанавливает точный будильник через AlarmManager.
+        Будильник запускает ServiceReminder через PendingIntent.getService —
+        это работает в фоне без открытия UI, даже при закрытом приложении."""
+        try:
+            from jnius import autoclass, cast as _cast
+            import calendar
+
+            trigger_ms = int(calendar.timegm(trigger_dt.timetuple()) * 1000)
+            req_code = abs(hash(f"{tid}:{alarm_type}")) % 100000
+            String = autoclass("java.lang.String")
+
+            # Сначала пробуем запустить ServiceReminder (если собран в APK)
+            pi = None
+            try:
+                SERVICE_CLASS = "org.flowdo.flowdo.ServiceReminder"
+                svc_cls = autoclass(SERVICE_CLASS)
+                intent = Intent(ctx, svc_cls)
+                intent.setAction("org.flowdo.flowdo.SHOW_NOTIFICATION")
+                intent.putExtra("notif_title",
+                    _cast("java.lang.CharSequence", String(msg_title)))
+                intent.putExtra("notif_text",
+                    _cast("java.lang.CharSequence", String(msg_text)))
+
+                FLAG_IMMUTABLE = 0x04000000
+                FLAG_UPDATE    = 0x08000000
+                flags = FLAG_IMMUTABLE | FLAG_UPDATE
+
+                if BuildVersion.SDK_INT >= 26:
+                    # Android 8+ — getForegroundService чтобы служба
+                    # могла вызвать startForeground при запуске от будильника
+                    pi = PendingIntent.getForegroundService(
+                        ctx, req_code, intent, flags)
+                else:
+                    pi = PendingIntent.getService(
+                        ctx, req_code, intent, flags)
+                self._log_debug(
+                    f"_set_alarm: using ServiceReminder for '{alarm_type}' at {trigger_dt}")
+            except Exception as e:
+                self._log_debug(
+                    f"_set_alarm: ServiceReminder not found ({e!r}), skip alarm")
+                return  # Без службы будильники не работают — выходим
+
+            # Устанавливаем будильник
+            RTC_WAKEUP = AlarmManager.RTC_WAKEUP
+            can_exact = getattr(self, "_can_schedule_exact", True)
+            if BuildVersion.SDK_INT >= 23 and can_exact:
+                am.setExactAndAllowWhileIdle(RTC_WAKEUP, trigger_ms, pi)
+                self._log_debug(
+                    f"_set_alarm OK (exact): {alarm_type} '{tid}' at {trigger_dt}")
+            elif BuildVersion.SDK_INT >= 19:
+                # Запасной вариант — окно 5 минут (менее точно но работает без разрешения)
+                am.setWindow(RTC_WAKEUP, trigger_ms, 5 * 60 * 1000, pi)
+                self._log_debug(
+                    f"_set_alarm OK (window): {alarm_type} '{tid}' at {trigger_dt}")
+            else:
+                am.set(RTC_WAKEUP, trigger_ms, pi)
+                self._log_debug(
+                    f"_set_alarm OK (set): {alarm_type} '{tid}' at {trigger_dt}")
         except Exception as e:
-            self._log_debug(f"_start_notification_service: startService FAILED {e!r}")
+            self._log_debug(f"_set_alarm ERROR: {e!r}")
 
     def _apply_md_style(self):
         self.theme_cls.theme_style = "Dark" if THEMES.get(self.theme_name,{}).get("dark") else "Light"
@@ -7508,7 +7623,8 @@ class DailyTodoApp(MDApp):
         Clock.schedule_once(self._check_shared_intent, 0.5)
 
     def _check_shared_intent(self, *_):
-        """Проверяет, не было ли приложение открыто через 'Открыть с помощью' (.json файл)."""
+        """Проверяет, не было ли приложение открыто через будильник
+        (AlarmManager) или через 'Открыть с помощью' (.json файл)."""
         if PLATFORM != "android":
             return
         try:
@@ -7519,13 +7635,30 @@ class DailyTodoApp(MDApp):
             if intent is None:
                 return
             action = intent.getAction()
+            self._log_debug(f"_check_shared_intent: action={action}")
+
+            # Обрабатываем будильник от AlarmManager
+            if action == "org.flowdo.flowdo.SHOW_NOTIFICATION":
+                try:
+                    title = intent.getStringExtra("notif_title") or "Flow·Do"
+                    text = intent.getStringExtra("notif_text") or ""
+                    self._log_debug(f"  alarm notification: '{title}' / '{text}'")
+                    # Показываем уведомление
+                    Clock.schedule_once(
+                        lambda *_: self._send_notification(text, title), 0.3)
+                    # Сбрасываем action чтобы не показывать повторно
+                    intent.setAction(None)
+                except Exception as e:
+                    self._log_debug(f"  alarm intent error: {e!r}")
+                return
+
             Intent = autoclass("android.content.Intent")
             if action == Intent.ACTION_VIEW or action == Intent.ACTION_SEND:
                 uri = intent.getData()
                 if uri is not None:
                     self.handle_shared_file(uri.toString())
-        except Exception:
-            pass
+        except Exception as e:
+            self._log_debug(f"_check_shared_intent error: {e!r}")
 
     # ── Топбар ──────────────────────────────────────────────────────────────
     def _make_topbar(self):
@@ -10044,6 +10177,10 @@ class DailyTodoApp(MDApp):
     def _do_save(self,*_):
         self._save_ev=None
         self.store.put("tasks", items=list(self.tasks.values()))
+        # Перепланируем будильники каждый раз при сохранении задач —
+        # новые/изменённые задачи сразу получают AlarmManager-будильник
+        if PLATFORM == "android":
+            Clock.schedule_once(lambda *_: self._start_notification_service(), 0.5)
 
     def _load_config(self):
         if self.cfg_store.exists("profile"):
