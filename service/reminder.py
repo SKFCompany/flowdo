@@ -173,6 +173,130 @@ def _start_foreground_minimal(service, ctx):
         _log(f"_start_foreground_minimal ERROR: {e!r}")
 
 
+REMIND_OFFSETS_MIN = {
+    "За 10 минут": 10,
+    "За 30 минут": 30,
+    "За 1 час":    60,
+    "За 1 день":   60 * 24,
+}
+
+
+def _reschedule_all_alarms(ctx):
+    """Перечитывает tasks.json и заново расставляет все будущие
+    AlarmManager-будильники. Нужно, потому что Android ПОЛНОСТЬЮ снимает
+    все запланированные будильники приложения при перезагрузке устройства
+    (и на некоторых прошивках — при обновлении самого приложения). Без
+    этой пересборки уведомления переставали приходить в фоне после
+    любой перезагрузки телефона, пока пользователь сам не откроет
+    приложение (которое пересобирает будильники при старте)."""
+    try:
+        from jnius import autoclass, cast
+        base_path = _get_storage_path()
+        data = _load_json(os.path.join(base_path, "tasks.json"))
+        items = []
+        if isinstance(data, dict):
+            sect = data.get("tasks", {})
+            if isinstance(sect, dict):
+                items = sect.get("items", [])
+
+        Intent = autoclass("android.content.Intent")
+        PendingIntent = autoclass("android.app.PendingIntent")
+        AlarmManager = autoclass("android.app.AlarmManager")
+        BuildVersion = autoclass("android.os.Build$VERSION")
+        Context = autoclass("android.content.Context")
+        String = autoclass("java.lang.String")
+        RTC_WAKEUP = AlarmManager.RTC_WAKEUP
+        am = cast("android.app.AlarmManager",
+                  ctx.getSystemService(Context.ALARM_SERVICE))
+        SERVICE_CLASS = "org.flowdo.flowdo.ServiceReminder"
+        svc_cls = autoclass(SERVICE_CLASS)
+
+        now = datetime.now()
+        count = 0
+
+        def _arm(trigger_dt, tid, kind, title, msg):
+            nonlocal count
+            try:
+                intent = Intent(ctx, svc_cls)
+                intent.setAction("org.flowdo.flowdo.SHOW_NOTIFICATION")
+                intent.putExtra("notif_title",
+                    cast("java.lang.CharSequence", String(title)))
+                intent.putExtra("notif_text",
+                    cast("java.lang.CharSequence", String(msg)))
+                FLAG_IMMUTABLE = 0x04000000
+                FLAG_UPDATE    = 0x08000000
+                flags = FLAG_IMMUTABLE | FLAG_UPDATE
+                req_code = abs(hash(f"{tid}:{kind}")) % 100000
+                if BuildVersion.SDK_INT >= 26:
+                    pi = PendingIntent.getForegroundService(ctx, req_code, intent, flags)
+                else:
+                    pi = PendingIntent.getService(ctx, req_code, intent, flags)
+                # datetime.timestamp() на наивном datetime использует
+                # локальный часовой пояс устройства — то же самое, что
+                # использует системные часы Android (AlarmManager).
+                trigger_ms = int(trigger_dt.timestamp() * 1000)
+                if BuildVersion.SDK_INT >= 23:
+                    am.setExactAndAllowWhileIdle(RTC_WAKEUP, trigger_ms, pi)
+                else:
+                    am.set(RTC_WAKEUP, trigger_ms, pi)
+                count += 1
+            except Exception as e:
+                _log(f"_reschedule_all_alarms _arm ERROR: {e!r}")
+
+        for t in items:
+            if not isinstance(t, dict) or t.get("done"):
+                continue
+            date_s = t.get("date", "")
+            time_s = t.get("time", "")
+            if not date_s or not time_s:
+                continue
+            try:
+                task_dt = datetime.strptime(f"{date_s} {time_s}", "%d.%m.%Y %H:%M")
+            except Exception:
+                continue
+            tid = t.get("id", "")
+            title = t.get("title", "Задача")
+            if task_dt > now:
+                _arm(task_dt, tid, "time",
+                     "Flow\u00b7Do \u2014 \u0417\u0430\u0434\u0430\u0447\u0430",
+                     f"\u0412\u0440\u0435\u043c\u044f \u0437\u0430\u0434\u0430\u0447\u0438: {title}")
+            remind_s = t.get("reminder", "")
+            offset = REMIND_OFFSETS_MIN.get(remind_s)
+            if offset:
+                remind_dt = task_dt - timedelta(minutes=offset)
+                if remind_dt > now:
+                    _arm(remind_dt, tid, "remind",
+                         "Flow\u00b7Do \u2014 \u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u0435",
+                         f"\u041d\u0430\u043f\u043e\u043c\u0438\u043d\u0430\u043d\u0438\u0435: {title} ({remind_s})")
+
+        _log(f"_reschedule_all_alarms: re-armed {count} alarms after boot")
+    except Exception as e:
+        _log(f"_reschedule_all_alarms ERROR: {e!r}")
+
+
+def _handle_reschedule_intent(service):
+    """Обрабатывает запуск от BootReceiver (после перезагрузки устройства)
+    — заново расставляет все будильники и завершает работу службы."""
+    try:
+        intent = service.getIntent()
+        if intent is None:
+            return False
+        action = intent.getAction()
+        if action != "org.flowdo.flowdo.RESCHEDULE_ALARMS":
+            return False
+        _log(f"_handle_reschedule_intent: action={action}")
+        ctx = service.getApplicationContext()
+        _reschedule_all_alarms(ctx)
+        try:
+            service.stopSelf()
+        except Exception:
+            pass
+        return True
+    except Exception as e:
+        _log(f"_handle_reschedule_intent ERROR: {e!r}")
+        return False
+
+
 def _handle_alarm_intent(service):
     """Обрабатывает запуск от AlarmManager — показывает уведомление
     и завершает работу службы. Возвращает True если это был alarm-запуск."""
@@ -270,7 +394,13 @@ def main():
         _log(f"FATAL: cannot get service context: {e!r}")
         return
 
-    # Режим 1: запущены от AlarmManager — показать уведомление и выйти
+    # Режим 1а: запущены от BootReceiver после перезагрузки устройства —
+    # пересобрать все будильники (Android снимает их при ребуте) и выйти
+    if _handle_reschedule_intent(service):
+        _log("=== Service done (reschedule-after-boot mode) ===")
+        return
+
+    # Режим 1б: запущены от AlarmManager — показать уведомление и выйти
     if _handle_alarm_intent(service):
         _log("=== Service done (alarm mode) ===")
         return
