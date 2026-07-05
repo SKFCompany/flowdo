@@ -22,6 +22,11 @@ android.add_resources = res
 android.manifestmodifications = android_manifest_mod.xml
 services = Reminder:service/reminder.py:foreground
 
+# BootReceiver.java — пересобирает будильники после перезагрузки
+# устройства / обновления приложения. Папка должна содержать
+# java_src/org/flowdo/flowdo/BootReceiver.java (путь = package).
+android.add_src = java_src
+
 # Для отправки файлов через "Поделиться" нужен FileProvider
 android.add_xml = res/xml/file_provider_paths.xml
 
