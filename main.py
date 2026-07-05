@@ -5736,6 +5736,100 @@ class TaskCard(MDCard):
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  Колесо выбора числа (часы / минуты) — настоящий "wheel picker" как в
+#  нативных Android/iOS time-picker'ах: видны соседние значения сверху и
+#  снизу, инерционная прокрутка + доводка (snap) к ближайшему значению
+#  после остановки пальца.
+# ═══════════════════════════════════════════════════════════════════════════
+class _WheelColumn(ScrollView):
+    def __init__(self, values, selected_index=0, item_h=None,
+                 visible_items=5, on_change=None, **kw):
+        self.item_h = item_h or S(44)
+        self.visible_items = visible_items
+        self.values = values
+        self.on_change = on_change
+        self._snap_ev = None
+        kw.setdefault("do_scroll_x", False)
+        kw.setdefault("bar_width", 0)
+        super().__init__(size_hint_y=None, height=self.item_h*visible_items, **kw)
+
+        pad_n = visible_items // 2
+        self.inner = MDBoxLayout(orientation="vertical", size_hint_y=None)
+        self.inner.height = self.item_h * (len(values) + 2*pad_n)
+        self.inner.add_widget(Widget(size_hint_y=None, height=self.item_h*pad_n))
+        self._labels = []
+        for v in values:
+            lbl = MDLabel(text=f"{v:02d}", halign="center", valign="middle",
+                          size_hint_y=None, height=self.item_h,
+                          font_style="H6", theme_text_color="Custom",
+                          text_color=C["text2"])
+            lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],s[1])))
+            self.inner.add_widget(lbl)
+            self._labels.append(lbl)
+        self.inner.add_widget(Widget(size_hint_y=None, height=self.item_h*pad_n))
+        self.add_widget(self.inner)
+
+        self._sel_index = max(0, min(selected_index, len(values)-1))
+        self.bind(scroll_y=self._on_scroll)
+        self.scroll_to_index(self._sel_index, animate=False)
+
+    def _content_extra(self):
+        return max(1, self.inner.height - self.height)
+
+    def _index_from_scroll(self, scroll_y):
+        offset = (1 - scroll_y) * self._content_extra()
+        return offset / self.item_h
+
+    def _on_scroll(self, *_):
+        idx_f = self._index_from_scroll(self.scroll_y)
+        idx = max(0, min(int(round(idx_f)), len(self.values)-1))
+        self._update_styles(idx_f)
+        if idx != self._sel_index:
+            self._sel_index = idx
+            if self.on_change:
+                self.on_change(self.values[idx])
+        if self._snap_ev:
+            self._snap_ev.cancel()
+        self._snap_ev = Clock.schedule_once(self._snap, 0.15)
+
+    def _update_styles(self, idx_f):
+        for i, lbl in enumerate(self._labels):
+            dist = abs(i - idx_f)
+            if dist < 0.5:
+                lbl.bold = True
+                lbl.font_style = "H5"
+                lbl.text_color = C["accent"]
+            else:
+                lbl.bold = False
+                lbl.font_style = "H6"
+                fade = max(0.30, 1 - dist*0.35)
+                base = C["text2"]
+                lbl.text_color = (base[0], base[1], base[2], fade)
+
+    def _snap(self, *_):
+        self.scroll_to_index(self._sel_index, animate=True)
+
+    def scroll_to_index(self, idx, animate=True):
+        idx = max(0, min(idx, len(self.values)-1))
+        extra = self._content_extra()
+        target_offset = idx * self.item_h
+        target_scroll_y = 1 - (target_offset/extra if extra else 0)
+        target_scroll_y = max(0.0, min(1.0, target_scroll_y))
+        self._sel_index = idx
+        if self.on_change:
+            self.on_change(self.values[idx])
+        if animate:
+            Animation(scroll_y=target_scroll_y, d=0.18, t="out_quad").start(self)
+        else:
+            self.scroll_y = target_scroll_y
+        self._update_styles(idx)
+
+    @property
+    def value(self):
+        return self.values[self._sel_index]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  Форма задачи
 # ═══════════════════════════════════════════════════════════════════════════
 class TaskFormScreen(MDScreen):
@@ -6157,10 +6251,10 @@ class TaskFormScreen(MDScreen):
         self._date_lbl.text=self._date_val; dlg.dismiss()
 
     def _open_time_picker(self):
-        """Диалог выбора времени — прокрутка пальцем вверх/вниз."""
+        """Диалог выбора времени — настоящее 'колесо' (wheel), как в
+        нативных пикерах Android/iOS: видно соседние значения сверху и
+        снизу выбранного, прокрутка пальцем инерционная, без стрелок."""
         from kivy.uix.modalview import ModalView
-        from kivy.uix.scrollview import ScrollView
-        from kivy.graphics import Color as _KC, Rectangle as _KR
 
         try:
             cur_h = int(self._time_val.split(":")[0])
@@ -6170,12 +6264,15 @@ class TaskFormScreen(MDScreen):
 
         h_val = [cur_h]
         m_val = [cur_m]
+        ITEM_H = S(44)
+        VISIBLE = 5
 
         mv = ModalView(background_color=(0,0,0,0.5), auto_dismiss=False,
                        size_hint=(0.82, None))
-        card = MDCard(orientation="vertical", size_hint_y=None, height=S(300),
+        card = MDCard(orientation="vertical", size_hint_y=None,
+                      height=S(60) + ITEM_H*VISIBLE + S(80),
                       radius=[S(16)], elevation=6, md_bg_color=C["surf"],
-                      padding=[S(16), S(12)])
+                      padding=[S(16), S(12)], spacing=S(6))
 
         title = MDLabel(text="Выберите время", font_style="H6", bold=True,
                         theme_text_color="Primary", halign="center",
@@ -6183,96 +6280,46 @@ class TaskFormScreen(MDScreen):
         title.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(title)
 
-        # ── Колонка с прокруткой ──────────────────────────────────────────
-        def _make_scroll_col(get_fn, set_fn, max_val):
-            """Колонка с числами — свайп вверх/вниз меняет значение."""
-            ITEM_H = S(56)
+        # ── Область с двумя колёсами (часы : минуты) ───────────────────────
+        wheel_area = MDFloatLayout(size_hint_y=None, height=ITEM_H*VISIBLE)
 
-            outer = MDBoxLayout(orientation="vertical", spacing=0)
+        # Подсветка центральной (выбранной) строки — под колёсами
+        sel_band = Widget(size_hint=(1, None), height=ITEM_H,
+                          pos_hint={"center_y": 0.5, "x": 0})
+        def _draw_band(w, *_):
+            w.canvas.before.clear()
+            with w.canvas.before:
+                Color(*C["acc_s"])
+                RoundedRectangle(pos=(w.x+S(4), w.y),
+                                 size=(w.width-S(8), w.height),
+                                 radius=[S(10)])
+        sel_band.bind(pos=_draw_band, size=_draw_band)
+        wheel_area.add_widget(sel_band)
 
-            # Метка текущего значения
-            val_lbl = MDLabel(
-                text=f"{get_fn():02d}",
-                font_style="H3", bold=True,
-                theme_text_color="Custom", text_color=C["accent"],
-                halign="center", valign="middle",
-                size_hint_y=None, height=ITEM_H)
-            val_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-
-            # Подсказки +/-
-            hint_up = MDLabel(text="▲", font_style="Caption",
-                              theme_text_color="Secondary",
-                              halign="center", size_hint_y=None, height=S(20))
-            hint_up.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-            hint_dn = MDLabel(text="▼", font_style="Caption",
-                              theme_text_color="Secondary",
-                              halign="center", size_hint_y=None, height=S(20))
-            hint_dn.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-
-            outer.add_widget(hint_up)
-            outer.add_widget(val_lbl)
-            outer.add_widget(hint_dn)
-
-            # Touch-обработчик для свайпа
-            _touch_start = [0]
-            _acc = [0.0]  # накопитель дробного движения
-
-            def _on_touch_down(w, t):
-                if outer.collide_point(*t.pos):
-                    _touch_start[0] = t.y
-                    _acc[0] = 0.0
-                    t.grab(outer)
-                    return True
-                return False
-
-            def _on_touch_move(w, t):
-                if t.grab_current is not outer:
-                    return False
-                dy = t.y - _touch_start[0]
-                # Каждые ITEM_H пикселей — один шаг
-                steps = int((_acc[0] + dy) / (ITEM_H * 0.4))
-                if steps != 0:
-                    _acc[0] = (_acc[0] + dy) - steps * ITEM_H * 0.4
-                    _touch_start[0] = t.y
-                    new_val = (get_fn() - steps) % max_val
-                    set_fn(new_val)
-                    val_lbl.text = f"{get_fn():02d}"
-                return True
-
-            def _on_touch_up(w, t):
-                if t.grab_current is not outer:
-                    return False
-                t.ungrab(outer)
-                return True
-
-            outer.bind(on_touch_down=_on_touch_down,
-                       on_touch_move=_on_touch_move,
-                       on_touch_up=_on_touch_up)
-            return outer
-
-        row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                          height=S(140), spacing=S(12), padding=[S(20),S(4)])
-
-        h_col = _make_scroll_col(
-            lambda: h_val[0], lambda v: h_val.__setitem__(0,v), 24)
-        sep = MDLabel(text=":", font_style="H3", bold=True,
-                      theme_text_color="Custom", text_color=C["text"],
-                      halign="center",
-                      size_hint_x=None, width=S(16),
-                      size_hint_y=None, height=S(56))
-        sep.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        m_col = _make_scroll_col(
-            lambda: m_val[0], lambda v: m_val.__setitem__(0,v), 60)
-
-        row.add_widget(h_col)
+        row = MDBoxLayout(orientation="horizontal", spacing=S(4),
+                          padding=[S(24), 0],
+                          size_hint=(1, 1), pos_hint={"x": 0, "y": 0})
+        h_wheel = _WheelColumn(list(range(24)), selected_index=cur_h,
+                               item_h=ITEM_H, visible_items=VISIBLE,
+                               on_change=lambda v: h_val.__setitem__(0, v))
+        sep = MDLabel(text=":", font_style="H4", bold=True,
+                     theme_text_color="Custom", text_color=C["text"],
+                     halign="center", valign="middle",
+                     size_hint=(None, None), size=(S(20), ITEM_H*VISIBLE))
+        sep.bind(size=lambda w,s: setattr(w,"text_size",(s[0],s[1])))
+        m_wheel = _WheelColumn(list(range(60)), selected_index=cur_m,
+                               item_h=ITEM_H, visible_items=VISIBLE,
+                               on_change=lambda v: m_val.__setitem__(0, v))
+        row.add_widget(h_wheel)
         row.add_widget(sep)
-        row.add_widget(m_col)
-        card.add_widget(row)
+        row.add_widget(m_wheel)
+        wheel_area.add_widget(row)
+        card.add_widget(wheel_area)
 
         hint = MDLabel(
-            text="Свайп ▲▼ для изменения",
+            text="Прокрутите колесо, чтобы выбрать время",
             font_style="Caption", theme_text_color="Secondary",
-            halign="center", size_hint_y=None, height=S(24))
+            halign="center", size_hint_y=None, height=S(22))
         hint.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(hint)
 
@@ -6938,11 +6985,17 @@ class DailyTodoApp(MDApp):
             # и её ранний запуск может конфликтовать с инициализацией SDL2
             if self.user_name:
                 Clock.schedule_once(self._start_notification_service, 2)
+                # Предлагаем отключить оптимизацию батареи — один раз,
+                # спустя 4 секунды после запуска (чтобы не мешать
+                # инициализации SDL2/UI). Без этого на многих устройствах
+                # система будет убивать приложение и отменять будильники,
+                # из-за чего уведомления перестают приходить в фоне.
+                if not self.cfg_store.exists("battery_opt_asked"):
+                    Clock.schedule_once(self._request_ignore_battery_opt, 4)
+                    self.cfg_store.put("battery_opt_asked", value=True)
             self._log_debug("build(): scheduling block completed OK")
         except Exception as e:
             self._log_debug(f"build(): scheduling block ERROR {e!r}")
-        # Оптимизация батареи — НЕ запускаем автоматически (вызывает краш
-        # при загрузке SDL2), пользователь может включить через кнопку в настройках
         self._log_debug("build(): scheduling done, returning sm")
         return self.sm
 
@@ -7063,10 +7116,72 @@ class DailyTodoApp(MDApp):
                 self._can_schedule_exact = True  # assume OK on older Android
 
     def _request_ignore_battery_opt(self, *_):
-        """Показывает инструкцию по ручному отключению оптимизации батареи.
-        НЕ открываем системный экран автоматически — это вызывало краш."""
-        self._show_toast(
-            "Настройки → Приложения → FlowDo → Батарея → Без ограничений")
+        """Спрашивает у пользователя разрешение добавить приложение в
+        исключения оптимизации батареи — БЕЗ этого на многих устройствах
+        (особенно Xiaomi/MIUI, Huawei, Oppo/Realme/ColorOS, Samsung с
+        агрессивной 'экономией батареи') система может убивать процесс
+        и/или отменять запланированные будильники, из-за чего push
+        перестаёт приходить, когда приложение полностью закрыто.
+        Системный экран открывается только после явного согласия
+        пользователя (кнопка в диалоге), и сам вызов обёрнут в try/except,
+        чтобы отсутствие интента на каком-то устройстве не приводило к
+        краху — просто ничего не произойдёт."""
+        if PLATFORM != "android":
+            return
+        try:
+            from jnius import autoclass
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            Context = autoclass("android.content.Context")
+            ctx = PythonActivity.mActivity.getApplicationContext()
+            PowerManager = autoclass("android.os.PowerManager")
+            pm = ctx.getSystemService(Context.POWER_SERVICE)
+            pkg = ctx.getPackageName()
+            already_ignoring = pm.isIgnoringBatteryOptimizations(pkg)
+            self._log_debug(f"_request_ignore_battery_opt: already={already_ignoring}")
+            if already_ignoring:
+                self._show_toast("Оптимизация батареи уже отключена для FlowDo")
+                return
+        except Exception as e:
+            self._log_debug(f"_request_ignore_battery_opt check ERROR: {e!r}")
+            already_ignoring = None  # неизвестно — всё равно предложим
+
+        def _do_open(*_):
+            try:
+                from jnius import autoclass, cast
+                PythonActivity = autoclass("org.kivy.android.PythonActivity")
+                Settings = autoclass("android.provider.Settings")
+                Uri = autoclass("android.net.Uri")
+                Intent = autoclass("android.content.Intent")
+                String = autoclass("java.lang.String")
+                activity = PythonActivity.mActivity
+                pkg = activity.getPackageName()
+                intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+                intent.setData(Uri.parse(f"package:{pkg}"))
+                activity.startActivity(intent)
+                self._log_debug("_request_ignore_battery_opt: opened system dialog")
+            except Exception as e:
+                self._log_debug(f"_request_ignore_battery_opt open ERROR: {e!r}")
+                self._show_toast(
+                    "Не удалось открыть настройки автоматически. Откройте "
+                    "вручную: Настройки → Приложения → FlowDo → Батарея → "
+                    "Без ограничений")
+
+        try:
+            dlg = MDDialog(
+                title="Разрешить работу в фоне?",
+                text=("Чтобы напоминания приходили, даже когда FlowDo "
+                      "полностью закрыто, разрешите приложению работать "
+                      "без ограничений батареи. Иначе система может "
+                      "отменять запланированные уведомления."),
+                buttons=[
+                    MDFlatButton(text="Позже", on_release=lambda *_: dlg.dismiss()),
+                    MDRaisedButton(text="Разрешить", md_bg_color=C["accent"],
+                                   on_release=lambda *_: (dlg.dismiss(), _do_open())),
+                ])
+            dlg.open()
+        except Exception as e:
+            self._log_debug(f"_request_ignore_battery_opt dialog ERROR: {e!r}")
+            _do_open()
 
 
     def _start_notification_service(self, *_):
@@ -7147,9 +7262,23 @@ class DailyTodoApp(MDApp):
         это работает в фоне без открытия UI, даже при закрытом приложении."""
         try:
             from jnius import autoclass, cast as _cast
-            import calendar
 
-            trigger_ms = int(calendar.timegm(trigger_dt.timetuple()) * 1000)
+            # ВАЖНО: trigger_dt — это "наивный" datetime в МЕСТНОМ времени
+            # устройства (тот же смысл, что и datetime.now(), с которым
+            # сравнивается время задачи, пока приложение открыто).
+            # calendar.timegm() трактует переданный struct_time как UTC,
+            # поэтому раньше здесь получался epoch-момент, сдвинутый на
+            # величину локального часового пояса относительно реального
+            # времени срабатывания будильника (например, на +5 часов для
+            # UTC+5). Из-за этого будильник через AlarmManager срабатывал
+            # в неправильный момент — а не в момент, введённый пользователем.
+            # Это и есть причина того, что уведомления "работали", только
+            # когда приложение было открыто (там время сравнивается через
+            # datetime.now(), без этой ошибки), а фоновые — нет.
+            # datetime.timestamp() для наивного datetime использует именно
+            # локальный часовой пояс системы — то же самое, что использует
+            # AlarmManager (currentTimeMillis реального устройства).
+            trigger_ms = int(trigger_dt.timestamp() * 1000)
             req_code = abs(hash(f"{tid}:{alarm_type}")) % 100000
             String = autoclass("java.lang.String")
 
