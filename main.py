@@ -6157,21 +6157,23 @@ class TaskFormScreen(MDScreen):
         self._date_lbl.text=self._date_val; dlg.dismiss()
 
     def _open_time_picker(self):
-        """Диалог выбора времени — кнопки +/- без ScrollView."""
+        """Диалог выбора времени — прокрутка пальцем вверх/вниз."""
         from kivy.uix.modalview import ModalView
+        from kivy.uix.scrollview import ScrollView
+        from kivy.graphics import Color as _KC, Rectangle as _KR
+
         try:
             cur_h = int(self._time_val.split(":")[0])
             cur_m = int(self._time_val.split(":")[1])
         except Exception:
             cur_h = 9; cur_m = 0
 
-        # Изменяемые значения (не через sel[idx] — ловушка замыкания)
         h_val = [cur_h]
         m_val = [cur_m]
 
         mv = ModalView(background_color=(0,0,0,0.5), auto_dismiss=False,
                        size_hint=(0.82, None))
-        card = MDCard(orientation="vertical", size_hint_y=None, height=S(260),
+        card = MDCard(orientation="vertical", size_hint_y=None, height=S(300),
                       radius=[S(16)], elevation=6, md_bg_color=C["surf"],
                       padding=[S(16), S(12)])
 
@@ -6181,45 +6183,101 @@ class TaskFormScreen(MDScreen):
         title.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(title)
 
+        # ── Колонка с прокруткой ──────────────────────────────────────────
+        def _make_scroll_col(get_fn, set_fn, max_val):
+            """Колонка с числами — свайп вверх/вниз меняет значение."""
+            ITEM_H = S(56)
+
+            outer = MDBoxLayout(orientation="vertical", spacing=0)
+
+            # Метка текущего значения
+            val_lbl = MDLabel(
+                text=f"{get_fn():02d}",
+                font_style="H3", bold=True,
+                theme_text_color="Custom", text_color=C["accent"],
+                halign="center", valign="middle",
+                size_hint_y=None, height=ITEM_H)
+            val_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+
+            # Подсказки +/-
+            hint_up = MDLabel(text="▲", font_style="Caption",
+                              theme_text_color="Secondary",
+                              halign="center", size_hint_y=None, height=S(20))
+            hint_up.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            hint_dn = MDLabel(text="▼", font_style="Caption",
+                              theme_text_color="Secondary",
+                              halign="center", size_hint_y=None, height=S(20))
+            hint_dn.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+
+            outer.add_widget(hint_up)
+            outer.add_widget(val_lbl)
+            outer.add_widget(hint_dn)
+
+            # Touch-обработчик для свайпа
+            _touch_start = [0]
+            _acc = [0.0]  # накопитель дробного движения
+
+            def _on_touch_down(w, t):
+                if outer.collide_point(*t.pos):
+                    _touch_start[0] = t.y
+                    _acc[0] = 0.0
+                    t.grab(outer)
+                    return True
+                return False
+
+            def _on_touch_move(w, t):
+                if t.grab_current is not outer:
+                    return False
+                dy = t.y - _touch_start[0]
+                # Каждые ITEM_H пикселей — один шаг
+                steps = int((_acc[0] + dy) / (ITEM_H * 0.4))
+                if steps != 0:
+                    _acc[0] = (_acc[0] + dy) - steps * ITEM_H * 0.4
+                    _touch_start[0] = t.y
+                    new_val = (get_fn() - steps) % max_val
+                    set_fn(new_val)
+                    val_lbl.text = f"{get_fn():02d}"
+                return True
+
+            def _on_touch_up(w, t):
+                if t.grab_current is not outer:
+                    return False
+                t.ungrab(outer)
+                return True
+
+            outer.bind(on_touch_down=_on_touch_down,
+                       on_touch_move=_on_touch_move,
+                       on_touch_up=_on_touch_up)
+            return outer
+
         row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                          height=S(150), spacing=S(12), padding=[S(4),S(4)])
+                          height=S(140), spacing=S(12), padding=[S(20),S(4)])
 
-        def _make_col(get_fn, set_fn, max_val):
-            col = MDBoxLayout(orientation="vertical", spacing=S(4))
-            up = MDRaisedButton(text="+", size_hint_y=None, height=S(44),
-                                 md_bg_color=C["surf2"], elevation=0,
-                                 font_size=S(22))
-            lbl = MDLabel(text=f"{get_fn():02d}", font_style="H4", bold=True,
-                           halign="center", valign="middle",
-                           theme_text_color="Primary",
-                           size_hint_y=None, height=S(52))
-            lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-            dn = MDRaisedButton(text="-", size_hint_y=None, height=S(44),
-                                 md_bg_color=C["surf2"], elevation=0,
-                                 font_size=S(22))
-            def _up(*_):
-                set_fn((get_fn()+1) % max_val)
-                lbl.text = f"{get_fn():02d}"
-            def _dn(*_):
-                set_fn((get_fn()-1) % max_val)
-                lbl.text = f"{get_fn():02d}"
-            up.bind(on_release=_up)
-            dn.bind(on_release=_dn)
-            col.add_widget(up); col.add_widget(lbl); col.add_widget(dn)
-            return col
-
-        h_col = _make_col(lambda: h_val[0], lambda v: h_val.__setitem__(0,v), 24)
-        sep = MDLabel(text=":", font_style="H4", bold=True,
-                      theme_text_color="Primary", halign="center",
-                      size_hint_x=None, width=S(20),
-                      size_hint_y=None, height=S(48))
+        h_col = _make_scroll_col(
+            lambda: h_val[0], lambda v: h_val.__setitem__(0,v), 24)
+        sep = MDLabel(text=":", font_style="H3", bold=True,
+                      theme_text_color="Custom", text_color=C["text"],
+                      halign="center",
+                      size_hint_x=None, width=S(16),
+                      size_hint_y=None, height=S(56))
         sep.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
-        m_col = _make_col(lambda: m_val[0], lambda v: m_val.__setitem__(0,v), 60)
-        row.add_widget(h_col); row.add_widget(sep); row.add_widget(m_col)
+        m_col = _make_scroll_col(
+            lambda: m_val[0], lambda v: m_val.__setitem__(0,v), 60)
+
+        row.add_widget(h_col)
+        row.add_widget(sep)
+        row.add_widget(m_col)
         card.add_widget(row)
 
+        hint = MDLabel(
+            text="Свайп ▲▼ для изменения",
+            font_style="Caption", theme_text_color="Secondary",
+            halign="center", size_hint_y=None, height=S(24))
+        hint.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(hint)
+
         btn_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                              height=S(44), spacing=S(8))
+                              height=S(48), spacing=S(8))
         def _clear(*_):
             self._time_val = ""
             self._time_lbl.text = "Не выбрано"; mv.dismiss()
@@ -6228,8 +6286,8 @@ class TaskFormScreen(MDScreen):
             self._time_lbl.text = self._time_val; mv.dismiss()
         btn_row.add_widget(MDFlatButton(text="Очистить", on_release=_clear))
         btn_row.add_widget(Widget())
-        btn_row.add_widget(MDRaisedButton(text="Выбрать",
-                            md_bg_color=C["accent"], on_release=_apply))
+        btn_row.add_widget(MDRaisedButton(
+            text="Выбрать", md_bg_color=C["accent"], on_release=_apply))
         card.add_widget(btn_row)
         mv.add_widget(card); mv.open()
 
@@ -7127,6 +7185,7 @@ class DailyTodoApp(MDApp):
                 return  # Без службы будильники не работают — выходим
 
             # Устанавливаем будильник
+            AlarmManager = autoclass("android.app.AlarmManager")
             RTC_WAKEUP = AlarmManager.RTC_WAKEUP
             can_exact = getattr(self, "_can_schedule_exact", True)
             if BuildVersion.SDK_INT >= 23 and can_exact:
