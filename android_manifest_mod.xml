@@ -28,5 +28,22 @@
                 android:value="reminder_notifications" />
         </service>
 
+        <!--
+            Пересобирает будильники после перезагрузки устройства и после
+            обновления приложения (Android снимает все AlarmManager-
+            будильники в обоих случаях). Без этого приёмника фоновые
+            уведомления пропадают до следующего открытия приложения.
+        -->
+        <receiver
+            android:name="org.flowdo.flowdo.BootReceiver"
+            android:exported="true"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>
