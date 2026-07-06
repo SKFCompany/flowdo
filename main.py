@@ -7258,23 +7258,23 @@ class DailyTodoApp(MDApp):
     def _set_alarm(self, am, ctx, Intent, PendingIntent, BuildVersion,
                    trigger_dt, tid, alarm_type, msg_title, msg_text):
         """Устанавливает точный будильник через AlarmManager.
-        Будильник запускает ServiceReminder через PendingIntent.getService —
-        это работает в фоне без открытия UI, даже при закрытом приложении."""
+        Будильник напрямую вызывает AlarmNotificationReceiver (чистый
+        Java-приёмник) — уведомление строится и показывается прямо в
+        onReceive(), БЕЗ запуска Python и без службы. Это работает в фоне
+        даже при полностью закрытом приложении и не может вызвать ANR:
+        раньше будильник поднимал Python-сервис (ServiceReminder), а
+        холодный старт Python-рантайма (загрузка libpython.so, импорт
+        jnius и т.д.) при закрытом приложении мог занимать больше 5 секунд —
+        Android требует вызвать startForeground() в течение 5 секунд после
+        startForegroundService(), иначе процесс убивается с ошибкой
+        'приложение не отвечает'. Именно поэтому пуш появлялся только в
+        момент открытия приложения (тёплый, уже запущенный процесс)."""
         try:
             from jnius import autoclass, cast as _cast
 
             # ВАЖНО: trigger_dt — это "наивный" datetime в МЕСТНОМ времени
             # устройства (тот же смысл, что и datetime.now(), с которым
             # сравнивается время задачи, пока приложение открыто).
-            # calendar.timegm() трактует переданный struct_time как UTC,
-            # поэтому раньше здесь получался epoch-момент, сдвинутый на
-            # величину локального часового пояса относительно реального
-            # времени срабатывания будильника (например, на +5 часов для
-            # UTC+5). Из-за этого будильник через AlarmManager срабатывал
-            # в неправильный момент — а не в момент, введённый пользователем.
-            # Это и есть причина того, что уведомления "работали", только
-            # когда приложение было открыто (там время сравнивается через
-            # datetime.now(), без этой ошибки), а фоновые — нет.
             # datetime.timestamp() для наивного datetime использует именно
             # локальный часовой пояс системы — то же самое, что использует
             # AlarmManager (currentTimeMillis реального устройства).
@@ -7282,13 +7282,11 @@ class DailyTodoApp(MDApp):
             req_code = abs(hash(f"{tid}:{alarm_type}")) % 100000
             String = autoclass("java.lang.String")
 
-            # Сначала пробуем запустить ServiceReminder (если собран в APK)
             pi = None
             try:
-                SERVICE_CLASS = "org.flowdo.flowdo.ServiceReminder"
-                svc_cls = autoclass(SERVICE_CLASS)
-                intent = Intent(ctx, svc_cls)
-                intent.setAction("org.flowdo.flowdo.SHOW_NOTIFICATION")
+                RECEIVER_CLASS = "org.flowdo.flowdo.AlarmNotificationReceiver"
+                recv_cls = autoclass(RECEIVER_CLASS)
+                intent = Intent(ctx, recv_cls)
                 intent.putExtra("notif_title",
                     _cast("java.lang.CharSequence", String(msg_title)))
                 intent.putExtra("notif_text",
@@ -7298,20 +7296,13 @@ class DailyTodoApp(MDApp):
                 FLAG_UPDATE    = 0x08000000
                 flags = FLAG_IMMUTABLE | FLAG_UPDATE
 
-                if BuildVersion.SDK_INT >= 26:
-                    # Android 8+ — getForegroundService чтобы служба
-                    # могла вызвать startForeground при запуске от будильника
-                    pi = PendingIntent.getForegroundService(
-                        ctx, req_code, intent, flags)
-                else:
-                    pi = PendingIntent.getService(
-                        ctx, req_code, intent, flags)
+                pi = PendingIntent.getBroadcast(ctx, req_code, intent, flags)
                 self._log_debug(
-                    f"_set_alarm: using ServiceReminder for '{alarm_type}' at {trigger_dt}")
+                    f"_set_alarm: using AlarmNotificationReceiver for '{alarm_type}' at {trigger_dt}")
             except Exception as e:
                 self._log_debug(
-                    f"_set_alarm: ServiceReminder not found ({e!r}), skip alarm")
-                return  # Без службы будильники не работают — выходим
+                    f"_set_alarm: AlarmNotificationReceiver not found ({e!r}), skip alarm")
+                return  # Без приёмника будильники не работают — выходим
 
             # Устанавливаем будильник
             AlarmManager = autoclass("android.app.AlarmManager")
