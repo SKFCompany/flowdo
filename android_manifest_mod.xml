@@ -29,6 +29,16 @@
         </service>
 
         <!--
+            Показывает уведомление напрямую в onReceive(), без Python и
+            без службы — не может вызвать ANR, надёжно срабатывает даже
+            при полностью закрытом приложении.
+        -->
+        <receiver
+            android:name="org.flowdo.flowdo.AlarmNotificationReceiver"
+            android:exported="false"
+            android:enabled="true" />
+
+        <!--
             Пересобирает будильники после перезагрузки устройства и после
             обновления приложения (Android снимает все AlarmManager-
             будильники в обоих случаях). Без этого приёмника фоновые
