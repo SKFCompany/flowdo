@@ -15,7 +15,7 @@ import android.os.Build;
  * Этот класс НЕ требует Python-рантайма — только запускает
  * ServiceReminder с действием RESCHEDULE_ALARMS, которое уже написано
  * на Python (reminder.py) и само перечитывает tasks.json и заново
- * расставляет будильники.
+ * расставляет будильники (нацеленные на AlarmNotificationReceiver).
  */
 public class BootReceiver extends BroadcastReceiver {
     @Override
