@@ -19,11 +19,17 @@ android.sdk_path = /usr/local/lib/android/sdk
 android.ndk_path = /usr/local/lib/android/sdk/ndk/27.3.13750724
 orientation = portrait
 android.add_resources = res
-android.manifestmodifications = android_manifest_mod.xml
+
+# ВАЖНО: ключа "android.manifestmodifications" в buildozer/p4a НЕ
+# существует — он молча игнорировался, поэтому <receiver> так и не
+# попадали в реальный AndroidManifest.xml. Правильный ключ для тегов
+# внутри <application> — вот этот:
+android.extra_manifest_application_arguments = android_manifest_application.xml
+
 services = Reminder:service/reminder.py:foreground
 
-# BootReceiver.java — пересобирает будильники после перезагрузки
-# устройства / обновления приложения. Папка должна содержать
+# BootReceiver.java / AlarmNotificationReceiver.java — компилируются как
+# часть APK. Папка должна содержать
 # java_src/org/flowdo/flowdo/BootReceiver.java (путь = package).
 android.add_src = java_src
 
