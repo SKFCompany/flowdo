@@ -208,8 +208,8 @@ def _reschedule_all_alarms(ctx):
         RTC_WAKEUP = AlarmManager.RTC_WAKEUP
         am = cast("android.app.AlarmManager",
                   ctx.getSystemService(Context.ALARM_SERVICE))
-        SERVICE_CLASS = "org.flowdo.flowdo.ServiceReminder"
-        svc_cls = autoclass(SERVICE_CLASS)
+        RECEIVER_CLASS = "org.flowdo.flowdo.AlarmNotificationReceiver"
+        recv_cls = autoclass(RECEIVER_CLASS)
 
         now = datetime.now()
         count = 0
@@ -217,8 +217,7 @@ def _reschedule_all_alarms(ctx):
         def _arm(trigger_dt, tid, kind, title, msg):
             nonlocal count
             try:
-                intent = Intent(ctx, svc_cls)
-                intent.setAction("org.flowdo.flowdo.SHOW_NOTIFICATION")
+                intent = Intent(ctx, recv_cls)
                 intent.putExtra("notif_title",
                     cast("java.lang.CharSequence", String(title)))
                 intent.putExtra("notif_text",
@@ -227,10 +226,7 @@ def _reschedule_all_alarms(ctx):
                 FLAG_UPDATE    = 0x08000000
                 flags = FLAG_IMMUTABLE | FLAG_UPDATE
                 req_code = abs(hash(f"{tid}:{kind}")) % 100000
-                if BuildVersion.SDK_INT >= 26:
-                    pi = PendingIntent.getForegroundService(ctx, req_code, intent, flags)
-                else:
-                    pi = PendingIntent.getService(ctx, req_code, intent, flags)
+                pi = PendingIntent.getBroadcast(ctx, req_code, intent, flags)
                 # datetime.timestamp() на наивном datetime использует
                 # локальный часовой пояс устройства — то же самое, что
                 # использует системные часы Android (AlarmManager).
