@@ -4964,6 +4964,14 @@ def EmojiLabel(text="", font_style="Body1", **kwargs):
     tc_kw    = kwargs.pop("theme_text_color", "Primary")
     txtc_kw  = kwargs.pop("text_color", None)
 
+    # Запоминаем параметры создания — нужно чтобы update_emoji_label()
+    # мог полностью пересобрать виджет с той же стилизацией, когда текст
+    # меняется на другой набор emoji (см. update_emoji_label).
+    _rebuild_kwargs = dict(
+        font_style=font_style, height=box_h, size_hint_y=sh_y,
+        halign=halign, valign=valign, bold=bold_kw,
+        theme_text_color=tc_kw, text_color=txtc_kw, **kwargs)
+
     EMOJI_RE = _re_compile_emoji()
 
     emoji_matches = list(EMOJI_RE.finditer(text))
@@ -4979,6 +4987,7 @@ def EmojiLabel(text="", font_style="Body1", **kwargs):
                             size=(box_h, box_h),
                             allow_stretch=True, keep_ratio=True)
             img._emoji_text = text
+            img._emoji_kwargs = _rebuild_kwargs
             _ALL_EMOJI_WIDGETS.append(_weakref.ref(img))
             return img
 
@@ -4993,6 +5002,7 @@ def EmojiLabel(text="", font_style="Body1", **kwargs):
                       **kwargs)
         lbl.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
         lbl._emoji_text = text
+        lbl._emoji_kwargs = _rebuild_kwargs
         return lbl
 
     # ── Смешанный текст + emoji → горизонтальный BoxLayout ───────────────────
@@ -5000,6 +5010,7 @@ def EmojiLabel(text="", font_style="Body1", **kwargs):
                       size_hint_y=sh_y, height=box_h,
                       spacing=S(3))
     box._emoji_text = text
+    box._emoji_kwargs = _rebuild_kwargs
 
     tokens = []
     last = 0
@@ -5090,31 +5101,46 @@ def _split_emoji(emoji_str):
 
 
 def update_emoji_label(widget, new_text):
-    """Обновляет текст/изображение EmojiLabel виджета."""
+    """Обновляет EmojiLabel-виджет новым текстом.
+
+    ВАЖНО: раньше эта функция для смешанного виджета (BoxLayout из
+    Image+MDLabel) патчила ТОЛЬКО текст внутри уже готового MDLabel,
+    оставляя emoji-картинку от старого текста нетронутой. Из-за этого
+    на экране появлялось: [картинка от старого emoji][новый emoji как
+    НЕОБработанный текстовый символ, т.е. "квадратик"][новый текст] —
+    ровно баг, который мы чиним. Теперь виджет полностью пересобирается
+    через EmojiLabel() с теми же параметрами стиля (сохранены в
+    widget._emoji_kwargs при создании), и старый виджет заменяется новым
+    в том же месте родителя.
+
+    ВАЖНО ДЛЯ ВЫЗЫВАЮЩЕГО КОДА: виджет может замениться на объект
+    ДРУГОГО типа (Image/MDLabel/MDBoxLayout) — обязательно сохраняйте
+    возвращаемое значение:
+        self._x = update_emoji_label(self._x, new_text)
+    """
     if widget is None:
-        return
-    widget._emoji_text = new_text
-    if isinstance(widget, KivyImage):
-        path = get_emoji_png(new_text.strip())
-        if path:
-            widget.source = path
-        return
-    if isinstance(widget, MDLabel):
-        widget.text = new_text
-        return
-    if isinstance(widget, MDBoxLayout):
-        # Обновляем первый MDLabel в боксе
-        for child in reversed(widget.children):
-            if isinstance(child, MDLabel):
-                child.text = new_text.strip()
-                return
-        # Если нет Label — обновляем первый Image
-        for child in reversed(widget.children):
-            if isinstance(child, KivyImage):
-                path = get_emoji_png(new_text.strip())
-                if path:
-                    child.source = path
-                return
+        return None
+
+    kwargs = dict(getattr(widget, "_emoji_kwargs", {}) or {})
+    parent = widget.parent
+
+    if parent is None:
+        # Виджет ещё нигде не размещён — просто создаём новый, без замены
+        new_widget = EmojiLabel(text=new_text, **kwargs)
+        new_widget.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None))) \
+            if isinstance(new_widget, (MDLabel, MDBoxLayout)) else None
+        return new_widget
+
+    try:
+        idx = parent.children.index(widget)
+    except ValueError:
+        idx = 0
+    parent.remove_widget(widget)
+
+    new_widget = EmojiLabel(text=new_text, **kwargs)
+    new_widget.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+    parent.add_widget(new_widget, index=idx)
+    return new_widget
 
 
 
@@ -7726,7 +7752,7 @@ class DailyTodoApp(MDApp):
         except Exception:
             pass
         if hasattr(self, "_w_quote"):
-            update_emoji_label(self._w_quote, random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F))
+            self._w_quote = update_emoji_label(self._w_quote, random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F))
 
     def _welcome_go(self, *_):
         name=self._wf_name.text.strip()
@@ -8064,19 +8090,17 @@ class DailyTodoApp(MDApp):
             hdr_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             di.add_widget(hdr_lbl)
 
-        self._day_task_lbl = MDLabel(text="Список пуст", font_style="Subtitle1",
+        self._day_task_lbl = EmojiLabel(text="Список пуст", font_style="Subtitle1",
                                      bold=True, theme_text_color="Custom",
                                      text_color=C["text"], size_hint_y=None, height=S(30),
                                      halign="left", valign="middle",
                                      shorten=True, shorten_from="right")
-        self._day_task_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         di.add_widget(self._day_task_lbl)
 
-        self._day_task_sub = MDLabel(text="", font_style="Caption",
+        self._day_task_sub = EmojiLabel(text="", font_style="Caption",
                                      theme_text_color="Custom", text_color=C["text2"],
                                      size_hint_y=None, height=S(20),
                                      halign="left", valign="middle")
-        self._day_task_sub.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         di.add_widget(self._day_task_sub)
         dc.add_widget(di)
 
@@ -8862,7 +8886,7 @@ class DailyTodoApp(MDApp):
         mot_msg = _pick_motivation(is_fem, done_today, total_today, mood_val)
         if hasattr(self,"_motiv_lbl"):
             if is_fem:
-                update_emoji_label(self._motiv_lbl, mot_msg)
+                self._motiv_lbl = update_emoji_label(self._motiv_lbl, mot_msg)
             # мужской — _motiv_lbl статичный ("ДИСЦИПЛИНА СЕГОДНЯ"), не трогаем
         if hasattr(self,"_motiv_sub"):
             if is_fem:
@@ -9659,10 +9683,10 @@ class DailyTodoApp(MDApp):
                     radius=[S(24)], elevation=6, md_bg_color=C["surf"],
                     padding=[S(24),S(20)])
         ci=MDBoxLayout(orientation="vertical", spacing=S(12))
-        ci.add_widget(MDLabel(text="\U0001f389" if is_fem else "\u26a1",
+        ci.add_widget(EmojiLabel(text="\U0001f389" if is_fem else "\u26a1",
                                font_style="H4", halign="center",
                                size_hint_y=None, height=S(54)))
-        ci.add_widget(MDLabel(text="Ты сегодня молодец! \U0001f496" if is_fem else "Отличная работа!",
+        ci.add_widget(EmojiLabel(text="Ты сегодня молодец! \U0001f496" if is_fem else "Отличная работа!",
                                font_style="H5", bold=True,
                                theme_text_color="Custom", text_color=C["accent"],
                                halign="center", size_hint_y=None, height=S(36)))
@@ -9814,17 +9838,17 @@ class DailyTodoApp(MDApp):
         pick=high or undone
         if hasattr(self,"_day_task_lbl"):
             if pick:
-                self._day_task_lbl.text=pick[0]["title"][:42]
+                self._day_task_lbl = update_emoji_label(self._day_task_lbl, pick[0]["title"][:42])
                 tv=pick[0].get("time","")
                 sub_txt=(tv if tv else
                     ("Поставь цель на сегодня \U0001f496" if is_fem else "до конца дня"))
-                self._day_task_sub.text = sub_txt
+                self._day_task_sub = update_emoji_label(self._day_task_sub, sub_txt)
             else:
                 done_txt=("Всё выполнено! \U0001f389" if done else
                     ("Добавь первую задачу" if is_fem else "Список пуст"))
-                self._day_task_lbl.text=done_txt
+                self._day_task_lbl = update_emoji_label(self._day_task_lbl, done_txt)
                 sub2=f"Выполнено {done} дел \U0001f49e" if (done and is_fem) else ""
-                self._day_task_sub.text = sub2
+                self._day_task_sub = update_emoji_label(self._day_task_sub, sub2)
         if self.cur_tab=="calendar":
             Clock.schedule_once(lambda *_: self._refresh_cal(), 0.05)
 
@@ -9953,7 +9977,7 @@ class DailyTodoApp(MDApp):
             halign="center", size_hint_y=None, height=S(56))
         info_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(info_lbl)
-        save_btn = MDRaisedButton(text="Сохранить бэкап...",
+        save_btn = MDRaisedButton(text="Сохранить бэкап в файл...",
                                    md_bg_color=C["accent"], elevation=0,
                                    size_hint_y=None, height=S(44))
         save_btn.bind(on_release=lambda *_: (mv.dismiss(), self._export()))
