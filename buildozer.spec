@@ -22,9 +22,18 @@ android.add_resources = res
 
 # ВАЖНО: ключа "android.manifestmodifications" в buildozer/p4a НЕ
 # существует — он молча игнорировался, поэтому <receiver> так и не
-# попадали в реальный AndroidManifest.xml. Правильный ключ для тегов
-# внутри <application> — вот этот:
-android.extra_manifest_application_arguments = android_manifest_application.xml
+# попадали в реальный AndroidManifest.xml.
+#
+# Правильный ключ "android.extra_manifest_application_arguments" ТОЖЕ не
+# использовать — в текущей связке buildozer/p4a это подтверждённый баг
+# апстрима (имя опции — подстрока другого существующего аргумента
+# парсера), из-за которого кавычки внутри XML портятся при сборке
+# командной строки вне зависимости от того ' или " использовать, и
+# processDebugMainManifest падает с "Error parsing AndroidManifest.xml".
+#
+# Обходим это p4a-хуком (p4a_hook.py, лежит в корне репозитория) — он
+# правит AndroidManifest.xml напрямую в Python, без командной строки:
+p4a.hook = p4a_hook.py
 
 services = Reminder:service/reminder.py:foreground
 
