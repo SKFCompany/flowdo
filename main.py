@@ -15024,29 +15024,48 @@ _EMOJI_PNG_DATA = (
 _EMOJI_PNG_CACHE = {}
 _EMOJI_PNG_DIR   = None
 _EMOJI_MAP       = None   # заполняется лениво
+_EMOJI_MAP_LOCK  = threading.Lock()
 
 def _get_emoji_map():
     global _EMOJI_MAP, _EMOJI_PNG_DIR
     if _EMOJI_MAP is not None:
         return _EMOJI_MAP
-    try:
-        raw = _zlib.decompress(_b64.b64decode(_EMOJI_PNG_DATA))
-        _EMOJI_MAP = _ejson.loads(raw.decode("utf-8"))
-        # Определяем папку для PNG файлов
-        if PLATFORM == "android":
-            try:
-                from android.storage import app_storage_path
-                _base = app_storage_path()
-            except Exception:
+    # Распаковка ~1.2МБ (146 emoji в высоком разрешении) занимает заметное
+    # время на слабом телефоне — блокировка нужна, чтобы если и главный
+    # поток, и фоновый поток прогрева (см. ниже) столкнутся одновременно,
+    # второй просто подождал результат первого вместо повторной работы.
+    with _EMOJI_MAP_LOCK:
+        if _EMOJI_MAP is not None:
+            return _EMOJI_MAP
+        try:
+            raw = _zlib.decompress(_b64.b64decode(_EMOJI_PNG_DATA))
+            _EMOJI_MAP = _ejson.loads(raw.decode("utf-8"))
+            # Определяем папку для PNG файлов
+            if PLATFORM == "android":
+                try:
+                    from android.storage import app_storage_path
+                    _base = app_storage_path()
+                except Exception:
+                    _base = _eos.path.dirname(_eos.path.abspath(__file__))
+            else:
                 _base = _eos.path.dirname(_eos.path.abspath(__file__))
-        else:
-            _base = _eos.path.dirname(_eos.path.abspath(__file__))
-        _EMOJI_PNG_DIR = _eos.path.join(_base, ".emoji_cache")
-        _eos.makedirs(_EMOJI_PNG_DIR, exist_ok=True)
-    except Exception as ex:
-        _EMOJI_MAP = {}
-        _EMOJI_PNG_DIR = tempfile.gettempdir()
+            _EMOJI_PNG_DIR = _eos.path.join(_base, ".emoji_cache")
+            _eos.makedirs(_EMOJI_PNG_DIR, exist_ok=True)
+        except Exception as ex:
+            _EMOJI_MAP = {}
+            _EMOJI_PNG_DIR = tempfile.gettempdir()
     return _EMOJI_MAP
+
+# Прогрев в фоновом потоке — запускаем СРАЗУ при импорте модуля, ещё до
+# того как MDApp.build() начнёт строить первый экран. Пока Python
+# доопределяет остальные классы этого файла и Kivy поднимает окно,
+# распаковка emoji-базы уже идёт параллельно на другом потоке — к
+# моменту, когда build() реально попросит первую emoji-картинку, работа
+# скорее всего уже готова (или почти готова), и главный поток не виснет.
+# Раньше вся эта распаковка происходила синхронно прямо во время
+# построения первого экрана (в шапке профиля и т.д.) — это и было
+# заметным подтормаживанием при каждом холодном старте приложения.
+threading.Thread(target=_get_emoji_map, daemon=True).start()
 
 def get_emoji_png(emoji_char):
     """Возвращает путь к PNG файлу для emoji. Создаёт файл если нужно."""
@@ -17101,6 +17120,17 @@ class DailyTodoApp(MDApp):
     def build(self):
         self.theme_cls.theme_style     = "Light"
         self.theme_cls.primary_palette = "Pink"
+
+        # ВАЖНО: без этого Android-клавиатура на некоторых экранах (в
+        # частности, поле "Ваше имя" при первом запуске) просто
+        # накладывается поверх интерфейса, закрывая собой поле ввода —
+        # текст вводится нормально, но не виден. "below_target" говорит
+        # Kivy автоматически приподнимать окно так, чтобы виджет в
+        # фокусе всегда оставался НАД клавиатурой. Раньше это включали
+        # точечно только для одного конкретного окна (быстрое
+        # добавление задачи) — теперь это общее поведение приложения.
+        from kivy.core.window import Window as _WindowGlobal
+        _WindowGlobal.softinput_mode = "below_target"
 
         # Загружаем шрифт с эмодзи если доступен (Android / Linux)
         _emoji_paths = [
