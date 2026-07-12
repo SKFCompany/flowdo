@@ -143,7 +143,7 @@ def FS(b):
 #  Локализация (i18n)
 #
 #  Русский используется как "язык-ключ": каждая строка в коде остаётся
-#  написанной по-русски (text=t("Сохранить")), а t() при необходимости
+#  написанной по-русски (text=_L("Сохранить")), а _L() при необходимости
 #  подменяет её переводом. Если перевода для конкретной строки ещё нет
 #  (перевод добавляется постепенно, по частям) — просто возвращается
 #  исходный русский текст, ничего не ломается.
@@ -368,7 +368,7 @@ TRANSLATIONS = {
 }
 
 
-def t(key, **kwargs):
+def _L(key, **kwargs):
     """Возвращает перевод строки key на текущий язык приложения.
     Русский используется как язык-ключ и как запасной вариант: если
     перевод для этой строки ещё не добавлен либо выбран русский язык —
@@ -15900,7 +15900,7 @@ class TaskCard(MDCard):
                     srow.add_widget(s_lbl)
                     card.add_widget(srow)
                 # Кнопка закрыть
-                close_btn = MDRaisedButton(text=t("Закрыть"), md_bg_color=C["surf2"],
+                close_btn = MDRaisedButton(text=_L("Закрыть"), md_bg_color=C["surf2"],
                                             size_hint_y=None, height=S(40),
                                             on_release=lambda *_: mv.dismiss())
                 card.add_widget(Widget(size_hint_y=None, height=S(6)))
@@ -16036,7 +16036,7 @@ class TaskCard(MDCard):
                       radius=[S(16)], elevation=6, md_bg_color=C["surf"],
                       padding=[S(20),S(16)])
         ci = MDBoxLayout(orientation="vertical", spacing=S(12))
-        ci.add_widget(MDLabel(text=t("Удалить задачу?"),
+        ci.add_widget(MDLabel(text=_L("Удалить задачу?"),
                                font_style="H6", bold=True,
                                theme_text_color="Custom", text_color=C["text"],
                                halign="center", size_hint_y=None, height=S(36)))
@@ -16046,10 +16046,10 @@ class TaskCard(MDCard):
         ci.add_widget(_lbl_tmp)
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
         br = MDBoxLayout(orientation="horizontal", spacing=S(12), size_hint_y=None, height=S(44))
-        cancel = MDRaisedButton(text=t("Отмена"), size_hint_x=0.5,
+        cancel = MDRaisedButton(text=_L("Отмена"), size_hint_x=0.5,
                                  elevation=0, md_bg_color=C["surf2"])
         cancel.bind(on_release=lambda *_: mv.dismiss())
-        delete = MDRaisedButton(text=t("Удалить"), size_hint_x=0.5,
+        delete = MDRaisedButton(text=_L("Удалить"), size_hint_x=0.5,
                                  elevation=0, md_bg_color=C["red"])
         def _do_del(*_):
             mv.dismiss()
@@ -16203,11 +16203,11 @@ class TaskCard(MDCard):
             dlg.dismiss()
             self._delete()
         dlg = MDDialog(
-            title=t("Удалить задачу?"),
+            title=_L("Удалить задачу?"),
             text=f'"{self.title}"',
             buttons=[
-                MDFlatButton(text=t("Отмена"), on_release=lambda *_: dlg.dismiss()),
-                MDRaisedButton(text=t("Удалить"), md_bg_color=(0.8,0.2,0.2,1),
+                MDFlatButton(text=_L("Отмена"), on_release=lambda *_: dlg.dismiss()),
+                MDRaisedButton(text=_L("Удалить"), md_bg_color=(0.8,0.2,0.2,1),
                                on_release=_do_del),
             ])
         dlg.open()
@@ -16337,7 +16337,7 @@ class TaskFormScreen(MDScreen):
                         height=S(56), md_bg_color=C["surf"],
                         padding=[S(16),S(8)])
         hdr.bind(on_touch_down=lambda w,t: bool(w.collide_point(*t.pos)))
-        title_hdr=MDLabel(text=t("Новая задача") if not self._task_id else "Редактировать",
+        title_hdr=MDLabel(text=_L("Новая задача") if not self._task_id else "Редактировать",
                           font_style="H6", bold=True, theme_text_color="Primary",
                           halign="center", valign="middle")
         title_hdr.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -16348,7 +16348,7 @@ class TaskFormScreen(MDScreen):
         inn=MDBoxLayout(orientation="vertical", adaptive_height=True,
                         spacing=S(0), padding=[S(16),S(14),S(16),S(30)])
         # ── Заголовок + автоподсказки из истории задач ──────────────────────
-        self.tf_title = MDTextField(hint_text=t("Что нужно сделать?"),
+        self.tf_title = MDTextField(hint_text=_L("Что нужно сделать?"),
                                     text=td.get("title",""),
                                     size_hint_x=1, size_hint_y=None, height=S(54))
         inn.add_widget(Widget(size_hint_y=None, height=S(4)))
@@ -16405,7 +16405,7 @@ class TaskFormScreen(MDScreen):
         # ── Теги (необязательно) ──────────────────────────────────────────
         inn.add_widget(self._lbl("Теги (необязательно)"))
         self._tf_tags = MDTextField(
-            hint_text=t("#работа #срочно #важно"),
+            hint_text=_L("#работа #срочно #важно"),
             text=" ".join(["#"+t for t in td.get("tags", [])]),
             size_hint_x=1, size_hint_y=None, height=S(48))
         inn.add_widget(self._tf_tags)
@@ -16504,7 +16504,7 @@ class TaskFormScreen(MDScreen):
         note_c.bind(minimum_height=note_c.setter("height"))
         ni=MDBoxLayout(orientation="vertical", adaptive_height=True, spacing=S(4))
         note_hdr=MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(28))
-        _lbl_tmp=MDLabel(text=t("Заметка"), font_style="Subtitle2",
+        _lbl_tmp=MDLabel(text=_L("Заметка"), font_style="Subtitle2",
                               theme_text_color="Custom", text_color=C["text"],
                       halign="left", valign="middle")
         note_hdr.add_widget(_lbl_tmp)
@@ -16538,7 +16538,7 @@ class TaskFormScreen(MDScreen):
                         radius=[S(16)], elevation=8,
                         md_bg_color=C["surf"], padding=[S(16),S(14)])
             hdr_n=MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(30))
-            _lbl_tmp=MDLabel(text=t("Заметка"), font_style="Subtitle1", bold=True,
+            _lbl_tmp=MDLabel(text=_L("Заметка"), font_style="Subtitle1", bold=True,
                                      theme_text_color="Custom", text_color=C["text"],
                           halign="left", valign="middle")
             hdr_n.add_widget(_lbl_tmp)
@@ -16547,16 +16547,16 @@ class TaskFormScreen(MDScreen):
                                theme_text_color="Custom", text_color=C["text2"])
             x_btn.bind(on_release=lambda *_: mv_note.dismiss())
             hdr_n.add_widget(x_btn); card.add_widget(hdr_n)
-            nf=MDTextField(hint_text=t("Введите заметку..."),
+            nf=MDTextField(hint_text=_L("Введите заметку..."),
                            text=self._note_text,
                            multiline=True, size_hint_y=None, height=S(160), mode="fill")
             card.add_widget(nf)
             br=MDBoxLayout(orientation="horizontal", spacing=S(10),
                            size_hint_y=None, height=S(48), padding=[0,S(4)])
-            cancel=MDFlatButton(text=t("Отмена"), size_hint_x=0.38,
+            cancel=MDFlatButton(text=_L("Отмена"), size_hint_x=0.38,
                                 theme_text_color="Custom", text_color=C["text2"])
             cancel.bind(on_release=lambda *_: mv_note.dismiss())
-            ok=MDRaisedButton(text=t("Сохранить"), size_hint_x=0.62,
+            ok=MDRaisedButton(text=_L("Сохранить"), size_hint_x=0.62,
                               md_bg_color=C["accent"], elevation=0)
             def _ok(btn_inst):
                 self._note_text = nf.text.strip()
@@ -16584,7 +16584,7 @@ class TaskFormScreen(MDScreen):
         sub_c.bind(minimum_height=sub_c.setter("height"))
         s_inn=MDBoxLayout(orientation="vertical", adaptive_height=True, spacing=S(4))
         s_hdr=MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(32))
-        _lbl_tmp=MDLabel(text=t("Подзадачи"), font_style="Subtitle2",
+        _lbl_tmp=MDLabel(text=_L("Подзадачи"), font_style="Subtitle2",
                                   theme_text_color="Custom", text_color=C["text"],
                       halign="left", valign="middle")
         s_hdr.add_widget(_lbl_tmp)
@@ -16605,7 +16605,7 @@ class TaskFormScreen(MDScreen):
                            padding=[S(12),S(8),S(12),S(8)], spacing=S(10))
         back2=MDCard(size_hint_x=0.4, size_hint_y=None, height=S(44),
                      radius=[S(8)], elevation=0, md_bg_color=C["surf2"])
-        back2_lbl=MDLabel(text=t("< Назад"), halign="center", valign="middle",
+        back2_lbl=MDLabel(text=_L("< Назад"), halign="center", valign="middle",
                           theme_text_color="Custom", text_color=C["text"],
                           size_hint=(1,1))
         back2_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -16615,7 +16615,7 @@ class TaskFormScreen(MDScreen):
         back2.bind(on_touch_up=_back_tap)
         save2=MDCard(size_hint_x=0.6, size_hint_y=None, height=S(44),
                      radius=[S(8)], elevation=0, md_bg_color=C["accent"])
-        save2_lbl=MDLabel(text=t("Сохранить"), halign="center", valign="middle",
+        save2_lbl=MDLabel(text=_L("Сохранить"), halign="center", valign="middle",
                           theme_text_color="Custom", text_color=(1,1,1,1),
                           size_hint=(1,1))
         save2_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -16721,10 +16721,10 @@ class TaskFormScreen(MDScreen):
         try: cal.sel=datetime.strptime(self._date_val,"%d.%m.%Y").date()
         except Exception: pass
         box.add_widget(cal)
-        dlg=MDDialog(title=t("Выберите дату"), type="custom", content_cls=box,
+        dlg=MDDialog(title=_L("Выберите дату"), type="custom", content_cls=box,
                      buttons=[
-                         MDFlatButton(text=t("Отмена"), on_release=lambda *_: dlg.dismiss()),
-                         MDRaisedButton(text=t("Выбрать"), md_bg_color=C["accent"],
+                         MDFlatButton(text=_L("Отмена"), on_release=lambda *_: dlg.dismiss()),
+                         MDRaisedButton(text=_L("Выбрать"), md_bg_color=C["accent"],
                                         on_release=lambda *_: self._apply_date(cal.sel, dlg))])
         dlg.open()
 
@@ -16756,7 +16756,7 @@ class TaskFormScreen(MDScreen):
                       radius=[S(16)], elevation=6, md_bg_color=C["surf"],
                       padding=[S(16), S(12)], spacing=S(6))
 
-        title = MDLabel(text=t("Выберите время"), font_style="H6", bold=True,
+        title = MDLabel(text=_L("Выберите время"), font_style="H6", bold=True,
                         theme_text_color="Primary", halign="center",
                         size_hint_y=None, height=S(36))
         title.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -16799,7 +16799,7 @@ class TaskFormScreen(MDScreen):
         card.add_widget(wheel_area)
 
         hint = MDLabel(
-            text=t("Прокрутите колесо, чтобы выбрать время"),
+            text=_L("Прокрутите колесо, чтобы выбрать время"),
             font_style="Caption", theme_text_color="Secondary",
             halign="center", size_hint_y=None, height=S(22))
         hint.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -16809,14 +16809,14 @@ class TaskFormScreen(MDScreen):
                               height=S(48), spacing=S(8))
         def _clear(*_):
             self._time_val = ""
-            self._time_lbl.text = t("Не выбрано"); mv.dismiss()
+            self._time_lbl.text = _L("Не выбрано"); mv.dismiss()
         def _apply(*_):
             self._time_val = f"{h_val[0]:02d}:{m_val[0]:02d}"
             self._time_lbl.text = self._time_val; mv.dismiss()
-        btn_row.add_widget(MDFlatButton(text=t("Очистить"), on_release=_clear))
+        btn_row.add_widget(MDFlatButton(text=_L("Очистить"), on_release=_clear))
         btn_row.add_widget(Widget())
         btn_row.add_widget(MDRaisedButton(
-            text=t("Выбрать"), md_bg_color=C["accent"], on_release=_apply))
+            text=_L("Выбрать"), md_bg_color=C["accent"], on_release=_apply))
         card.add_widget(btn_row)
         mv.add_widget(card); mv.open()
 
@@ -16872,12 +16872,12 @@ class TaskFormScreen(MDScreen):
     def _add_sub_dialog(self):
         box=MDBoxLayout(orientation="vertical", adaptive_height=True,
                         spacing=S(8), padding=[S(4)])
-        nf=MDTextField(hint_text=t("Название подзадачи"), size_hint_y=None, height=S(52))
+        nf=MDTextField(hint_text=_L("Название подзадачи"), size_hint_y=None, height=S(52))
         box.add_widget(nf)
-        dlg=MDDialog(title=t("Добавить подзадачу"), type="custom", content_cls=box,
+        dlg=MDDialog(title=_L("Добавить подзадачу"), type="custom", content_cls=box,
                      buttons=[
-                         MDFlatButton(text=t("Отмена"), on_release=lambda *_: dlg.dismiss()),
-                         MDRaisedButton(text=t("Добавить"), md_bg_color=C["accent"],
+                         MDFlatButton(text=_L("Отмена"), on_release=lambda *_: dlg.dismiss()),
+                         MDRaisedButton(text=_L("Добавить"), md_bg_color=C["accent"],
                                         on_release=lambda *_: self._do_add_sub(nf.text.strip(),dlg))])
         dlg.open()
 
@@ -16895,7 +16895,7 @@ class TaskFormScreen(MDScreen):
         if getattr(self, "_save_locked", False): return
         self._save_locked = True
         title=self.tf_title.text.strip()
-        if not title: self.tf_title.hint_text=t("Введите название!"); self._save_locked=False; return
+        if not title: self.tf_title.hint_text=_L("Введите название!"); self._save_locked=False; return
         # Parse tags from text field
         _raw_tags = getattr(self, "_tf_tags", None)
         _tags = []
@@ -16937,7 +16937,7 @@ class TaskDetailScreen(MDScreen):
                           theme_text_color="Custom", text_color=C["text2"])
         back.bind(on_release=lambda *_: self._on_back() if self._on_back else None)
         hdr.add_widget(back)
-        _lbl_tmp=MDLabel(text=t("Задача"), font_style="H6", bold=True,
+        _lbl_tmp=MDLabel(text=_L("Задача"), font_style="H6", bold=True,
                                theme_text_color="Primary", halign="center")
         hdr.add_widget(_lbl_tmp)
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
@@ -16991,7 +16991,7 @@ class TaskDetailScreen(MDScreen):
                            height=S(52), spacing=S(8), padding=[S(8),0])
         pr_row.add_widget(MDIconButton(icon="fire", size_hint_x=None, width=S(34),
                                         theme_text_color="Custom", text_color=C["text2"]))
-        _lbl_tmp=MDLabel(text=t("Приоритет"), font_style="Body1",
+        _lbl_tmp=MDLabel(text=_L("Приоритет"), font_style="Body1",
                                    theme_text_color="Primary",
                       halign="left", valign="middle")
         pr_row.add_widget(_lbl_tmp)
@@ -17011,7 +17011,7 @@ class TaskDetailScreen(MDScreen):
                       md_bg_color=C["surf"], padding=[S(16),S(12)])
             nc.bind(minimum_height=nc.setter("height"))
             ni=MDBoxLayout(orientation="vertical", adaptive_height=True, spacing=S(4))
-            _lbl_tmp=MDLabel(text=t("Заметка"), font_style="Subtitle2",
+            _lbl_tmp=MDLabel(text=_L("Заметка"), font_style="Subtitle2",
                                    theme_text_color="Custom", text_color=C["text"],
                                    size_hint_y=None, height=S(22),
                           halign="left", valign="middle")
@@ -17069,7 +17069,7 @@ class TaskDetailScreen(MDScreen):
         sv.add_widget(inn); root.add_widget(sv)
         br=MDBoxLayout(orientation="horizontal", size_hint_y=None,
                        height=S(66), md_bg_color=C["surf"], padding=[S(16),S(8)], spacing=S(12))
-        edit=MDRaisedButton(text=t("Редактировать"), size_hint_x=1,
+        edit=MDRaisedButton(text=_L("Редактировать"), size_hint_x=1,
                              size_hint_y=None, height=S(48), elevation=0, md_bg_color=C["accent"])
         edit.bind(on_release=lambda *_: self._app.open_task_form(self._task_id))
         del_b=MDIconButton(icon="trash-can-outline", size_hint_x=None,
@@ -17142,10 +17142,10 @@ class PomodoroScreen(MDScreen):
                            md_bg_color=C["bg"], padding=[S(20), S(24)])
         # ── Шапка ────────────────────────────────────────────────────────
         top = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(48))
-        back = MDRaisedButton(text=t("< Назад"), size_hint_x=None, width=S(100),
+        back = MDRaisedButton(text=_L("< Назад"), size_hint_x=None, width=S(100),
                               elevation=0, md_bg_color=C["surf2"])
         back.bind(on_release=lambda *_: self._app._nav_switch("tasks"))
-        self._mode_lbl = MDLabel(text=t("ФОКУС"), font_style="Caption", bold=True,
+        self._mode_lbl = MDLabel(text=_L("ФОКУС"), font_style="Caption", bold=True,
                                   theme_text_color="Custom", text_color=C["accent"],
                                   halign="center", valign="middle")
         self._mode_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -17210,13 +17210,13 @@ class PomodoroScreen(MDScreen):
         root.add_widget(Widget(size_hint_y=None, height=S(16)))
 
         # ── Активная задача ───────────────────────────────────────────────
-        self._task_lbl = MDLabel(text=t("Задача не выбрана"), font_style="Body2",
+        self._task_lbl = MDLabel(text=_L("Задача не выбрана"), font_style="Body2",
                                   theme_text_color="Secondary",
                                   halign="center", size_hint_y=None, height=S(24))
         self._task_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         root.add_widget(self._task_lbl)
 
-        pick_btn = MDRaisedButton(text=t("Выбрать задачу"), elevation=0,
+        pick_btn = MDRaisedButton(text=_L("Выбрать задачу"), elevation=0,
                                    md_bg_color=C["surf2"],
                                    size_hint_y=None, height=S(38))
         pick_btn.bind(on_release=self._pick_task)
@@ -17228,15 +17228,15 @@ class PomodoroScreen(MDScreen):
         btn_row = MDBoxLayout(orientation="horizontal", spacing=S(12),
                                size_hint_y=None, height=S(52))
         self._main_btn = MDRaisedButton(
-            text=t("Старт"), md_bg_color=C["accent"],
+            text=_L("Старт"), md_bg_color=C["accent"],
             size_hint_x=1, elevation=0)
         self._main_btn.bind(on_release=self._toggle)
         reset_btn = MDRaisedButton(
-            text=t("Сброс"), md_bg_color=C["surf2"],
+            text=_L("Сброс"), md_bg_color=C["surf2"],
             size_hint_x=None, width=S(90), elevation=0)
         reset_btn.bind(on_release=self._reset)
         skip_btn = MDRaisedButton(
-            text=t("Пропустить"), md_bg_color=C["surf2"],
+            text=_L("Пропустить"), md_bg_color=C["surf2"],
             size_hint_x=None, width=S(120), elevation=0)
         skip_btn.bind(on_release=self._skip)
         btn_row.add_widget(reset_btn)
@@ -17267,7 +17267,7 @@ class PomodoroScreen(MDScreen):
         self._running = False
         if self._clock_ev:
             self._clock_ev.cancel(); self._clock_ev = None
-        self._main_btn.text = t("Старт")
+        self._main_btn.text = _L("Старт")
         self._mode_lbl.text = labels[mode]
         for m in ("work", "short", "long"):
             btn = getattr(self, f"_mode_btn_{m}", None)
@@ -17279,10 +17279,10 @@ class PomodoroScreen(MDScreen):
         if self._running:
             self._running = False
             if self._clock_ev: self._clock_ev.cancel(); self._clock_ev = None
-            self._main_btn.text = t("Продолжить")
+            self._main_btn.text = _L("Продолжить")
         else:
             self._running = True
-            self._main_btn.text = t("Пауза")
+            self._main_btn.text = _L("Пауза")
             self._clock_ev = Clock.schedule_interval(self._tick, 1)
 
     def _tick(self, dt):
@@ -17296,7 +17296,7 @@ class PomodoroScreen(MDScreen):
             self._on_complete()
 
     def _on_complete(self):
-        self._main_btn.text = t("Старт")
+        self._main_btn.text = _L("Старт")
         if self._mode == "work":
             self._sessions += 1
             self._update_session_dots()
@@ -17323,7 +17323,7 @@ class PomodoroScreen(MDScreen):
         secs_map = {"work": self.WORK_SEC, "short": self.SHORT_SEC, "long": self.LONG_SEC}
         self._secs = secs_map[self._mode]
         self._timer_lbl.text = self._fmt(self._secs)
-        self._main_btn.text = t("Старт")
+        self._main_btn.text = _L("Старт")
         if hasattr(self, "_ring"): self._ring._draw()
 
     def _skip(self, *_):
@@ -17361,7 +17361,7 @@ class PomodoroScreen(MDScreen):
         card = MDCard(orientation="vertical", size_hint=(1,1),
                       radius=[S(16)], elevation=8,
                       md_bg_color=C["surf"], padding=[S(12),S(12)])
-        hdr = MDLabel(text=t("Выберите задачу"), font_style="H6", bold=True,
+        hdr = MDLabel(text=_L("Выберите задачу"), font_style="H6", bold=True,
                       theme_text_color="Custom", text_color=C["text"],
                       halign="center", size_hint_y=None, height=S(40))
         hdr.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -17386,7 +17386,7 @@ class PomodoroScreen(MDScreen):
             row.bind(on_touch_up=_sel)
             lst.add_widget(row)
         sv.add_widget(lst); card.add_widget(sv)
-        cancel = MDRaisedButton(text=t("Отмена"), elevation=0,
+        cancel = MDRaisedButton(text=_L("Отмена"), elevation=0,
                                  md_bg_color=C["surf2"],
                                  size_hint_y=None, height=S(40))
         cancel.bind(on_release=lambda *_: mv.dismiss())
@@ -17519,7 +17519,7 @@ class DailyTodoApp(MDApp):
         card = MDCard(orientation="vertical", size_hint=(1,1),
                       radius=[S(16)], elevation=8,
                       md_bg_color=C["surf"], padding=[S(12),S(12)], spacing=S(8))
-        title_lbl = MDLabel(text=t("Debug-лог (последние записи)"), font_style="H6", bold=True,
+        title_lbl = MDLabel(text=_L("Debug-лог (последние записи)"), font_style="H6", bold=True,
                             theme_text_color="Custom", text_color=C["text"],
                             halign="center", size_hint_y=None, height=S(32))
         title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -17544,10 +17544,10 @@ class DailyTodoApp(MDApp):
                 pass
             mv.dismiss()
             self._show_toast("Лог очищен")
-        clear_btn = MDRaisedButton(text=t("Очистить"), md_bg_color=C["surf2"],
+        clear_btn = MDRaisedButton(text=_L("Очистить"), md_bg_color=C["surf2"],
                                     elevation=0, size_hint_x=1)
         clear_btn.bind(on_release=_clear_log)
-        close_btn = MDRaisedButton(text=t("Закрыть"), md_bg_color=C["accent"],
+        close_btn = MDRaisedButton(text=_L("Закрыть"), md_bg_color=C["accent"],
                                     elevation=0, size_hint_x=1)
         close_btn.bind(on_release=lambda *_: mv.dismiss())
         btn_row.add_widget(clear_btn)
@@ -17661,14 +17661,14 @@ class DailyTodoApp(MDApp):
 
         try:
             dlg = MDDialog(
-                title=t("Разрешить работу в фоне?"),
+                title=_L("Разрешить работу в фоне?"),
                 text=("Чтобы напоминания приходили, даже когда FlowDo "
                       "полностью закрыто, разрешите приложению работать "
                       "без ограничений батареи. Иначе система может "
                       "отменять запланированные уведомления."),
                 buttons=[
-                    MDFlatButton(text=t("Позже"), on_release=lambda *_: dlg.dismiss()),
-                    MDRaisedButton(text=t("Разрешить"), md_bg_color=C["accent"],
+                    MDFlatButton(text=_L("Позже"), on_release=lambda *_: dlg.dismiss()),
+                    MDRaisedButton(text=_L("Разрешить"), md_bg_color=C["accent"],
                                    on_release=lambda *_: (dlg.dismiss(), _do_open())),
                 ])
             dlg.open()
@@ -18085,7 +18085,7 @@ class DailyTodoApp(MDApp):
             t_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             row.add_widget(t_lbl)
             card.add_widget(row)
-        ok_btn = MDRaisedButton(text=t("Понятно!"), md_bg_color=C["accent"],
+        ok_btn = MDRaisedButton(text=_L("Понятно!"), md_bg_color=C["accent"],
                                  size_hint_y=None, height=S(40), elevation=0)
         ok_btn.bind(on_release=lambda *_: mv.dismiss())
         card.add_widget(ok_btn)
@@ -18168,30 +18168,30 @@ class DailyTodoApp(MDApp):
                                halign="center", size_hint_y=None, height=S(42),
                                theme_text_color="Secondary")
         ci.add_widget(self._w_quote)
-        _lbl_tmp=MDLabel(text=t("Выберите стиль:"), font_style="Caption",
+        _lbl_tmp=MDLabel(text=_L("Выберите стиль:"), font_style="Caption",
                                theme_text_color="Secondary", size_hint_y=None, height=S(20),
                       halign="left", valign="middle")
         ci.add_widget(_lbl_tmp)
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
         g_row=MDBoxLayout(orientation="horizontal", spacing=S(10),
                           size_hint_y=None, height=S(46))
-        self._wg_fem=MDRaisedButton(text=t("Женский"), size_hint_x=0.5,
+        self._wg_fem=MDRaisedButton(text=_L("Женский"), size_hint_x=0.5,
                                      md_bg_color=C["accent"], elevation=0)
-        self._wg_mal=MDRaisedButton(text=t("Мужской"), size_hint_x=0.5,
+        self._wg_mal=MDRaisedButton(text=_L("Мужской"), size_hint_x=0.5,
                                      md_bg_color=C["surf2"], elevation=0)
         self._wg_fem.bind(on_release=lambda *_: self._wel_gender("female"))
         self._wg_mal.bind(on_release=lambda *_: self._wel_gender("male"))
         g_row.add_widget(self._wg_fem); g_row.add_widget(self._wg_mal)
         ci.add_widget(g_row)
-        _lbl_tmp=MDLabel(text=t("Ваше имя:"), font_style="Caption",
+        _lbl_tmp=MDLabel(text=_L("Ваше имя:"), font_style="Caption",
                                theme_text_color="Secondary", size_hint_y=None, height=S(20),
                       halign="left", valign="middle")
         ci.add_widget(_lbl_tmp)
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-        self._wf_name=MDTextField(hint_text=t("Введите имя *"), size_hint_y=None, height=S(52))
+        self._wf_name=MDTextField(hint_text=_L("Введите имя *"), size_hint_y=None, height=S(52))
         ci.add_widget(self._wf_name)
         ci.add_widget(Widget(size_hint_y=None, height=S(10)))
-        go=MDRaisedButton(text=t("Начать"), md_bg_color=C["accent"],
+        go=MDRaisedButton(text=_L("Начать"), md_bg_color=C["accent"],
                            size_hint=(1,None), height=S(52), elevation=2)
         go.bind(on_release=self._welcome_go); ci.add_widget(go)
         sv.add_widget(ci); card.add_widget(sv); root.add_widget(card)
@@ -18223,7 +18223,7 @@ class DailyTodoApp(MDApp):
 
     def _welcome_go(self, *_):
         name=self._wf_name.text.strip()
-        if not name: self._wf_name.hint_text=t("Введите имя!"); return
+        if not name: self._wf_name.hint_text=_L("Введите имя!"); return
         self.user_name=name
         self._apply_md_style(); self._save_config()
         self._build_main(); self.sm.current="main"
@@ -18425,7 +18425,7 @@ class DailyTodoApp(MDApp):
                                        theme_text_color="Custom", text_color=C["text2"]))
             tb.add_widget(r1)
 
-            self._tb_name=MDLabel(text=t("СЕГОДНЯ"), font_style="H6", bold=True,
+            self._tb_name=MDLabel(text=_L("СЕГОДНЯ"), font_style="H6", bold=True,
                                    theme_text_color="Primary",
                                    halign="left", valign="middle",
                                    size_hint_y=None, height=S(30))
@@ -18562,21 +18562,21 @@ class DailyTodoApp(MDApp):
             hdr_img = KivyImage(source=hdr_path, size_hint=(None,None),
                                 size=(S(16),S(16)), allow_stretch=True, keep_ratio=True)
             hdr_row.add_widget(hdr_img)
-            hdr_lbl = MDLabel(text=t("Задача дня"), font_style="Caption",
+            hdr_lbl = MDLabel(text=_L("Задача дня"), font_style="Caption",
                               theme_text_color="Custom", text_color=C["text2"],
                               halign="left", valign="middle")
             hdr_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             hdr_row.add_widget(hdr_lbl)
             di.add_widget(hdr_row)
         else:
-            hdr_lbl = MDLabel(text=t("Задача дня"), font_style="Caption",
+            hdr_lbl = MDLabel(text=_L("Задача дня"), font_style="Caption",
                               theme_text_color="Custom", text_color=C["text2"],
                               size_hint_y=None, height=S(18),
                               halign="left", valign="middle")
             hdr_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             di.add_widget(hdr_lbl)
 
-        self._day_task_lbl = EmojiLabel(text=t("Список пуст"), font_style="Subtitle1",
+        self._day_task_lbl = EmojiLabel(text=_L("Список пуст"), font_style="Subtitle1",
                                      bold=True, theme_text_color="Custom",
                                      text_color=C["text"], size_hint_y=None, height=S(30),
                                      halign="left", valign="middle",
@@ -18665,7 +18665,7 @@ class DailyTodoApp(MDApp):
                                   size=(S(36),S(36)),
                                   theme_text_color="Custom", text_color=C["text2"])
         self._search_field = MDTextField(
-            hint_text=t("Поиск задач, подзадач, комментариев..."),
+            hint_text=_L("Поиск задач, подзадач, комментариев..."),
             size_hint=(1,None), height=S(40), mode="fill")
         clear_btn = MDIconButton(icon="close-circle-outline",
                                  size_hint=(None,None), size=(S(36),S(36)),
@@ -18766,7 +18766,7 @@ class DailyTodoApp(MDApp):
         # переключатель вид месяц/день
         view_toggle=MDCard(size_hint=(None,None), size=(S(80),S(30)),
                            radius=[S(15)], elevation=0, md_bg_color=C["surf2"])
-        self._cal_view_lbl=MDLabel(text=t("Месяц"), font_style="Caption",
+        self._cal_view_lbl=MDLabel(text=_L("Месяц"), font_style="Caption",
                                     halign="center", valign="middle",
                                     theme_text_color="Custom", text_color=C["text"],
                                     size_hint=(1,1))
@@ -18774,7 +18774,7 @@ class DailyTodoApp(MDApp):
         def _tog_view(w,t):
             if view_toggle.collide_point(*t.pos):
                 self._cal_view_mode = "day" if self._cal_view_mode=="month" else "month"
-                self._cal_view_lbl.text = t("День") if self._cal_view_mode=="day" else "Месяц"
+                self._cal_view_lbl.text = _L("День") if self._cal_view_mode=="day" else "Месяц"
                 Clock.schedule_once(lambda *_: self._refresh_cal(), 0.05)
                 return True
         view_toggle.bind(on_touch_up=_tog_view)
@@ -18794,14 +18794,14 @@ class DailyTodoApp(MDApp):
         self.cal_w.bind(height=lambda w,h: setattr(cal_holder,"height",h))
         cal_holder.height=self.cal_w.height
         inn.add_widget(cal_holder)
-        self._cal_day_lbl=MDLabel(text=t("Сегодня"), font_style="Subtitle1", bold=True,
+        self._cal_day_lbl=MDLabel(text=_L("Сегодня"), font_style="Subtitle1", bold=True,
                                    theme_text_color="Primary",
                                    size_hint_y=None, height=S(34))
         inn.add_widget(self._cal_day_lbl)
         self.cal_task_list=MDBoxLayout(orientation="vertical",
                                         adaptive_height=True, spacing=S(4))
         inn.add_widget(self.cal_task_list)
-        add_btn=MDRaisedButton(text=t("  Добавить задачу"),
+        add_btn=MDRaisedButton(text=_L("  Добавить задачу"),
                                 size_hint_y=None, height=S(50),
                                 md_bg_color=C["accent"], elevation=0)
         add_btn.bind(on_release=lambda *_: self.open_task_form())
@@ -18834,7 +18834,7 @@ class DailyTodoApp(MDApp):
 
         if not tasks:
             self.cal_task_list.add_widget(
-                MDLabel(text=t("Нет задач на этот день"), halign="center",
+                MDLabel(text=_L("Нет задач на этот день"), halign="center",
                         theme_text_color="Secondary", size_hint_y=None, height=S(44)))
             if hasattr(self,"cal_w"):
                 self.cal_w.refresh_dates({t.get("date","") for t in self.tasks.values()})
@@ -18944,7 +18944,7 @@ class DailyTodoApp(MDApp):
         hdr=MDBoxLayout(orientation="vertical", size_hint_y=None, height=S(84),
                         md_bg_color=C["surf"], padding=[S(16),S(8),S(16),S(6)])
         title_row=MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(36))
-        t_lbl=MDLabel(text=t("Статистика"), font_style="H6", bold=True,
+        t_lbl=MDLabel(text=_L("Статистика"), font_style="H6", bold=True,
                       theme_text_color="Primary", halign="left", valign="middle")
         t_lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
         title_row.add_widget(t_lbl); hdr.add_widget(title_row)
@@ -19002,21 +19002,21 @@ class DailyTodoApp(MDApp):
                                        size_hint_y=None, height=S(28),
                                        halign="left", valign="middle")
             self._motiv_lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-            self._motiv_sub=MDLabel(text=t("Загрузка..."), font_style="Caption",
+            self._motiv_sub=MDLabel(text=_L("Загрузка..."), font_style="Caption",
                                     theme_text_color="Secondary",
                                     size_hint_y=None, height=S(20),
                                     halign="left", valign="middle")
             self._motiv_sub.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
             mot_box.add_widget(self._motiv_lbl); mot_box.add_widget(self._motiv_sub)
         else:
-            self._motiv_lbl=MDLabel(text=t("ДИСЦИПЛИНА СЕГОДНЯ —"),
+            self._motiv_lbl=MDLabel(text=_L("ДИСЦИПЛИНА СЕГОДНЯ —"),
                                     font_style="H6", bold=True,
                                     theme_text_color="Primary",
                                     size_hint_y=None, height=S(30),
                                     halign="left", valign="middle")
             self._motiv_lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
             mot_box.add_widget(self._motiv_lbl)
-            res_lbl=MDLabel(text=t("РЕЗУЛЬТАТ ЗАВТРА"), font_style="H6", bold=True,
+            res_lbl=MDLabel(text=_L("РЕЗУЛЬТАТ ЗАВТРА"), font_style="H6", bold=True,
                             theme_text_color="Custom", text_color=C["accent"],
                             size_hint_y=None, height=S(30), halign="left", valign="middle")
             res_lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
@@ -19050,7 +19050,7 @@ class DailyTodoApp(MDApp):
                               size_hint_y=None, height=S(60),
                               halign="left", valign="middle")
         self._sd_lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-        self._sf_lbl=MDLabel(text=t("выполнено из 0"), font_style="Caption",
+        self._sf_lbl=MDLabel(text=_L("выполнено из 0"), font_style="Caption",
                               theme_text_color="Secondary", size_hint_y=None, height=S(60),
                               halign="left", valign="middle")
         self._sf_lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
@@ -19066,7 +19066,7 @@ class DailyTodoApp(MDApp):
         stats_row.add_widget(self._sp_badge)
         ring_box.add_widget(stats_row)
 
-        prod_lbl=MDLabel(text=t("Продуктивность по дням"), font_style="Caption",
+        prod_lbl=MDLabel(text=_L("Продуктивность по дням"), font_style="Caption",
                          theme_text_color="Secondary", size_hint_y=None, height=S(20),
                          halign="left", valign="middle")
         prod_lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
@@ -19128,7 +19128,7 @@ class DailyTodoApp(MDApp):
         gc_box.bind(pos=lambda w,v: setattr(w._bg_rect,'pos',v),
                     size=lambda w,v: setattr(w._bg_rect,'size',v))
         gh=MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(24))
-        gl=MDLabel(text=t("ЦЕЛЬ НА НЕДЕЛЮ"), font_style="Caption",
+        gl=MDLabel(text=_L("ЦЕЛЬ НА НЕДЕЛЮ"), font_style="Caption",
                    theme_text_color="Custom", text_color=C["text2"],
                    halign="left", valign="middle")
         gl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
@@ -19173,7 +19173,7 @@ class DailyTodoApp(MDApp):
             mood_box._bg_rect=KRR(pos=mood_box.pos, size=mood_box.size, radius=[S(14)])
         mood_box.bind(pos=lambda w,v: setattr(w._bg_rect,'pos',v),
                       size=lambda w,v: setattr(w._bg_rect,'size',v))
-        mood_title = t("Как твоё настроение сегодня?") if is_fem else "Настроение сегодня"
+        mood_title = _L("Как твоё настроение сегодня?") if is_fem else "Настроение сегодня"
         mood_box.add_widget(MDLabel(text=mood_title,
                                     font_style="Subtitle2", bold=True,
                                     theme_text_color="Primary",
@@ -19232,7 +19232,7 @@ class DailyTodoApp(MDApp):
             heat_bg = _HBGRR(pos=heat_box.pos, size=heat_box.size, radius=[S(8)])
         heat_box.bind(pos=lambda w,v: setattr(heat_bg,"pos",v),
                       size=lambda w,v: setattr(heat_bg,"size",v))
-        ht_lbl = MDLabel(text=t("АКТИВНОСТЬ (5 недель)"), font_style="Caption",
+        ht_lbl = MDLabel(text=_L("АКТИВНОСТЬ (5 недель)"), font_style="Caption",
                          theme_text_color="Custom", text_color=C["text2"],
                          size_hint_y=None, height=S(18), halign="left", valign="middle")
         ht_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -19425,7 +19425,7 @@ class DailyTodoApp(MDApp):
         pg=MDBoxLayout(orientation="vertical")
         hdr=MDBoxLayout(orientation="horizontal", size_hint_y=None,
                         height=S(54), md_bg_color=C["surf"], padding=[S(16),S(10)])
-        _lbl_tmp=MDLabel(text=t("Настройки"), font_style="H6",
+        _lbl_tmp=MDLabel(text=_L("Настройки"), font_style="H6",
                                 bold=True, theme_text_color="Primary",
                       halign="left", valign="middle")
         hdr.add_widget(_lbl_tmp)
@@ -19471,7 +19471,7 @@ class DailyTodoApp(MDApp):
                               bold=True, theme_text_color="Primary",
                               size_hint_y=None, height=S(28))
         pn.add_widget(self._s_name)
-        _lbl_tmp=MDLabel(text=t("Нажмите чтобы изменить"), font_style="Caption",
+        _lbl_tmp=MDLabel(text=_L("Нажмите чтобы изменить"), font_style="Caption",
                                theme_text_color="Secondary", size_hint_y=None, height=S(18),
                       halign="left", valign="middle")
         pn.add_widget(_lbl_tmp)
@@ -19480,7 +19480,7 @@ class DailyTodoApp(MDApp):
         p_card.bind(on_release=lambda *_: self._edit_profile()); inn.add_widget(p_card)
 
         # Голосовой помощник — статус
-        inn.add_widget(_sec(t("ТЕМА ПРИЛОЖЕНИЯ")))
+        inn.add_widget(_sec(_L("ТЕМА ПРИЛОЖЕНИЯ")))
         g_row=MDBoxLayout(orientation="horizontal", spacing=S(10),
                            size_hint_y=None, height=S(46))
         for glabel,gtheme,gactive in [("Женский","Роза",is_fem),
@@ -19497,7 +19497,7 @@ class DailyTodoApp(MDApp):
             gc.bind(on_release=lambda _,t=gtheme: self._apply_theme(t))
             g_row.add_widget(gc)
         inn.add_widget(g_row)
-        _lbl_tmp=MDLabel(text=t("Выберите тему:"), font_style="Caption",
+        _lbl_tmp=MDLabel(text=_L("Выберите тему:"), font_style="Caption",
                                theme_text_color="Custom", text_color=C["text2"],
                                size_hint_y=None, height=S(22),
                       halign="left", valign="middle")
@@ -19511,7 +19511,7 @@ class DailyTodoApp(MDApp):
         themes_sv.add_widget(tgrid); inn.add_widget(themes_sv)
 
         # Категории
-        inn.add_widget(_sec(t("КАТЕГОРИИ")))
+        inn.add_widget(_sec(_L("КАТЕГОРИИ")))
         cat_c=MDCard(size_hint_y=None, radius=[S(14)], elevation=0,
                      md_bg_color=C["surf"], padding=[S(4),S(4)])
         cat_c.bind(minimum_height=cat_c.setter("height"))
@@ -19522,7 +19522,7 @@ class DailyTodoApp(MDApp):
                           height=S(50), padding=[S(12),0])
         add_r.add_widget(MDIconButton(icon="plus", size_hint_x=None, width=S(34),
                                        theme_text_color="Custom", text_color=C["accent"]))
-        _lbl_tmp=MDLabel(text=t("Добавить категорию"), font_style="Body1",
+        _lbl_tmp=MDLabel(text=_L("Добавить категорию"), font_style="Body1",
                                   theme_text_color="Custom", text_color=C["accent"],
                       halign="left", valign="middle")
         add_r.add_widget(_lbl_tmp)
@@ -19533,7 +19533,7 @@ class DailyTodoApp(MDApp):
         cat_i.add_widget(add_r); cat_c.add_widget(cat_i); inn.add_widget(cat_c)
 
         # Уведомления
-        inn.add_widget(_sec(t("УВЕДОМЛЕНИЯ")))
+        inn.add_widget(_sec(_L("УВЕДОМЛЕНИЯ")))
         notif_c=MDCard(size_hint_y=None, radius=[S(14)], elevation=0,
                        md_bg_color=C["surf"], padding=[S(4),S(4)])
         notif_c.bind(minimum_height=notif_c.setter("height"))
@@ -19541,24 +19541,24 @@ class DailyTodoApp(MDApp):
         for ntxt,nstate in [("Напоминания",True),("Звук",True),("Вибрация",False)]:
             ni.add_widget(self._notif_row(ntxt, nstate))
         plyer_lbl=MDLabel(
-            text=t("[OK] plyer активен") if PLYER_OK else "[!] pip install plyer",
+            text=_L("[OK] plyer активен") if PLYER_OK else "[!] pip install plyer",
             font_style="Caption", theme_text_color="Secondary",
             size_hint_y=None, height=S(20), padding=[S(16),0])
         ni.add_widget(plyer_lbl); notif_c.add_widget(ni); inn.add_widget(notif_c)
 
         # Язык
-        inn.add_widget(_sec(t("ЯЗЫК")))
+        inn.add_widget(_sec(_L("ЯЗЫК")))
         lang_c=MDCard(size_hint_y=None, radius=[S(14)], elevation=0,
                       md_bg_color=C["surf"], padding=[S(4),S(4)])
         lang_c.bind(minimum_height=lang_c.setter("height"))
         li=MDBoxLayout(orientation="vertical", adaptive_height=True)
         li.add_widget(self._sett_row(
-            "translate", f'{t("Язык")}: {LANG_NAMES.get(getattr(self,"lang","ru"),"Русский")}',
+            "translate", f'{_L("Язык")}: {LANG_NAMES.get(getattr(self,"lang","ru"),"Русский")}',
             self._open_language_picker))
         lang_c.add_widget(li); inn.add_widget(lang_c)
 
         # Данные
-        inn.add_widget(_sec(t("ДАННЫЕ")))
+        inn.add_widget(_sec(_L("ДАННЫЕ")))
         data_c=MDCard(size_hint_y=None, radius=[S(14)], elevation=0,
                       md_bg_color=C["surf"], padding=[S(4),S(4)])
         data_c.bind(minimum_height=data_c.setter("height"))
@@ -19575,7 +19575,7 @@ class DailyTodoApp(MDApp):
         self._exp_lbl=MDLabel(text="", font_style="Caption",
                                theme_text_color="Secondary", size_hint_y=None, height=S(20))
         inn.add_widget(self._exp_lbl)
-        rb=MDRaisedButton(text=t("Сбросить и начать заново"),
+        rb=MDRaisedButton(text=_L("Сбросить и начать заново"),
                            size_hint_y=None, height=S(46),
                            md_bg_color=C["surf2"], elevation=0)
         rb.bind(on_release=self._reset); inn.add_widget(rb)
@@ -19746,7 +19746,7 @@ class DailyTodoApp(MDApp):
                               opacity=1 if _ini_path else 0)
         preview_img_box.add_widget(preview_img)
         preview_row.add_widget(preview_img_box)
-        preview_lbl=MDLabel(text=t("нет") if not cur_em else "выбрано",
+        preview_lbl=MDLabel(text=_L("нет") if not cur_em else "выбрано",
                             font_style="Body2", theme_text_color="Secondary",
                             halign="left", valign="middle")
         preview_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -19765,7 +19765,7 @@ class DailyTodoApp(MDApp):
                 preview_img.source=em_path; preview_img.opacity=1
             else:
                 preview_img.opacity=0
-            preview_lbl.text=t("выбрано")
+            preview_lbl.text=_L("выбрано")
             for ec in em_cards:
                 ec.md_bg_color=C["accent"] if ec._em==em else C["surf2"]
         for em in CAT_EMOJI_OPTS:
@@ -19798,10 +19798,10 @@ class DailyTodoApp(MDApp):
             if sel_emoji[0]: CAT_EMOJI[cat]=sel_emoji[0]
             self._save_config()
             self._rebuild_cats_list(); self._refresh_cat_bar(); mv.dismiss()
-        btn_row.add_widget(MDFlatButton(text=t("Отмена"), on_release=_cancel_em))
-        btn_row.add_widget(MDFlatButton(text=t("Убрать"), on_release=_clear_em))
+        btn_row.add_widget(MDFlatButton(text=_L("Отмена"), on_release=_cancel_em))
+        btn_row.add_widget(MDFlatButton(text=_L("Убрать"), on_release=_clear_em))
         btn_row.add_widget(Widget())
-        btn_row.add_widget(MDRaisedButton(text=t("Сохранить"),
+        btn_row.add_widget(MDRaisedButton(text=_L("Сохранить"),
                             md_bg_color=C["accent"], on_release=_apply_em))
         card.add_widget(btn_row)
         mv.add_widget(card); mv.open()
@@ -19839,7 +19839,7 @@ class DailyTodoApp(MDApp):
         kind_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         ci.add_widget(kind_lbl)
         if sel:
-            check=MDLabel(text=t("✓ выбрана"), font_style="Caption",
+            check=MDLabel(text=_L("✓ выбрана"), font_style="Caption",
                            theme_text_color="Custom", text_color=(1,1,1,1),
                            halign="left", size_hint_y=None, height=S(14))
             check.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -19868,7 +19868,7 @@ class DailyTodoApp(MDApp):
         sel_emoji=[""]
         box=MDBoxLayout(orientation="vertical", adaptive_height=True,
                         spacing=S(10), padding=[S(4)])
-        nf=MDTextField(hint_text=t("Название категории"), size_hint_y=None, height=S(52))
+        nf=MDTextField(hint_text=_L("Название категории"), size_hint_y=None, height=S(52))
         box.add_widget(nf)
         # Preview строка
         em_prev_row=MDBoxLayout(orientation="horizontal", size_hint_y=None,
@@ -19878,7 +19878,7 @@ class DailyTodoApp(MDApp):
                               allow_stretch=True, keep_ratio=True, opacity=0)
         em_prev_img_box.add_widget(em_prev_img)
         em_prev_row.add_widget(em_prev_img_box)
-        em_preview_lbl=MDLabel(text=t("Эмодзи: не выбран"), font_style="Body2",
+        em_preview_lbl=MDLabel(text=_L("Эмодзи: не выбран"), font_style="Body2",
                                 theme_text_color="Secondary", halign="left", valign="middle")
         em_preview_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         em_prev_row.add_widget(em_preview_lbl)
@@ -19895,7 +19895,7 @@ class DailyTodoApp(MDApp):
                 em_prev_img.source=em_path; em_prev_img.opacity=1
             else:
                 em_prev_img.opacity=0
-            em_preview_lbl.text=t("выбрано")
+            em_preview_lbl.text=_L("выбрано")
             for ec in em_cards:
                 ec.md_bg_color=C["accent"] if ec._em==em else C["surf2"]
         for em in CAT_EMOJI_OPTS:
@@ -19916,10 +19916,10 @@ class DailyTodoApp(MDApp):
             grid.add_widget(ec)
         em_sv.add_widget(grid)
         box.add_widget(em_sv)
-        dlg=MDDialog(title=t("Новая категория"), type="custom", content_cls=box,
+        dlg=MDDialog(title=_L("Новая категория"), type="custom", content_cls=box,
                      buttons=[
-                         MDFlatButton(text=t("Отмена"), on_release=lambda *_: dlg.dismiss()),
-                         MDRaisedButton(text=t("Добавить"), md_bg_color=C["accent"],
+                         MDFlatButton(text=_L("Отмена"), on_release=lambda *_: dlg.dismiss()),
+                         MDRaisedButton(text=_L("Добавить"), md_bg_color=C["accent"],
                                         on_release=lambda *_: self._do_add_cat(nf.text.strip(), dlg, sel_emoji[0]))])
         dlg.open()
 
@@ -19953,7 +19953,7 @@ class DailyTodoApp(MDApp):
                             spacing=S(8), padding=[S(2),S(4)])
 
         # Поле имени
-        nf = MDTextField(hint_text=t("Имя"), text=self.user_name,
+        nf = MDTextField(hint_text=_L("Имя"), text=self.user_name,
                          size_hint_y=None, height=S(52))
         outer.add_widget(nf)
 
@@ -19968,7 +19968,7 @@ class DailyTodoApp(MDApp):
             allow_stretch=True, keep_ratio=True, opacity=1 if _ini_path else 0)
         preview_card.add_widget(self._preview_emoji_img)
         preview_row.add_widget(preview_card)
-        _hint = MDLabel(text=t("Выберите эмодзи ниже"),
+        _hint = MDLabel(text=_L("Выберите эмодзи ниже"),
                         font_style="Caption", theme_text_color="Secondary",
                         halign="left", valign="middle")
         _hint.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -20057,11 +20057,11 @@ class DailyTodoApp(MDApp):
                     self._s_emoji_lbl.text = self.user_emoji or "😊"
             self._refresh_header_avatar()
 
-        dlg = MDDialog(title=t("Профиль"), type="custom", content_cls=outer,
+        dlg = MDDialog(title=_L("Профиль"), type="custom", content_cls=outer,
                        buttons=[
-                           MDFlatButton(text=t("Отмена"),
+                           MDFlatButton(text=_L("Отмена"),
                                         on_release=lambda *_: dlg.dismiss()),
-                           MDRaisedButton(text=t("Сохранить"),
+                           MDRaisedButton(text=_L("Сохранить"),
                                           md_bg_color=C["accent"],
                                           on_release=_do_save)])
         dlg.open()
@@ -20085,19 +20085,19 @@ class DailyTodoApp(MDApp):
                             size_hint_y=None, height=S(50))
             f=MDTextField(text=cat, size_hint_y=None, height=S(50))
             fields.append(f); row.add_widget(f); box.add_widget(row)
-        add_b=MDRaisedButton(text=t("+ Добавить"), size_hint_y=None, height=S(38),
+        add_b=MDRaisedButton(text=_L("+ Добавить"), size_hint_y=None, height=S(38),
                               md_bg_color=C["surf2"], elevation=0)
         def _af(*_):
             row=MDBoxLayout(orientation="horizontal", spacing=S(6),
                             size_hint_y=None, height=S(50))
-            f=MDTextField(hint_text=t("Название..."), size_hint_y=None, height=S(50))
+            f=MDTextField(hint_text=_L("Название..."), size_hint_y=None, height=S(50))
             fields.append(f); row.add_widget(f); box.add_widget(row,index=1)
         add_b.bind(on_release=_af); box.add_widget(add_b)
         sv=ScrollView(size_hint_y=None, height=S(320)); sv.add_widget(box)
-        dlg=MDDialog(title=t("Категории"), type="custom", content_cls=sv,
+        dlg=MDDialog(title=_L("Категории"), type="custom", content_cls=sv,
                      buttons=[
-                         MDFlatButton(text=t("Отмена"), on_release=lambda *_: dlg.dismiss()),
-                         MDRaisedButton(text=t("Сохранить"), md_bg_color=C["accent"],
+                         MDFlatButton(text=_L("Отмена"), on_release=lambda *_: dlg.dismiss()),
+                         MDRaisedButton(text=_L("Сохранить"), md_bg_color=C["accent"],
                                         on_release=lambda *_: self._save_cats(fields,dlg))])
         dlg.open()
 
@@ -20130,7 +20130,7 @@ class DailyTodoApp(MDApp):
 
     def _tog_done(self,*_):
         self.show_done=not self.show_done
-        self.f_done.text=t("Показать вып.") if not self.show_done else "Скрыть вып."
+        self.f_done.text=_L("Показать вып.") if not self.show_done else "Скрыть вып."
         self.f_done.md_bg_color=(*C["accent"][:3], 0.15) if not self.show_done else C["surf2"]
         self.refresh_task_list()
 
@@ -20182,7 +20182,7 @@ class DailyTodoApp(MDApp):
         ci.add_widget(EmojiLabel(text="\U0001f389" if is_fem else "\u26a1",
                                font_style="H4", halign="center",
                                size_hint_y=None, height=S(54)))
-        ci.add_widget(EmojiLabel(text=t("Ты сегодня молодец! \U0001f496") if is_fem else "Отличная работа!",
+        ci.add_widget(EmojiLabel(text=_L("Ты сегодня молодец! \U0001f496") if is_fem else "Отличная работа!",
                                font_style="H5", bold=True,
                                theme_text_color="Custom", text_color=C["accent"],
                                halign="center", size_hint_y=None, height=S(36)))
@@ -20196,13 +20196,13 @@ class DailyTodoApp(MDApp):
                                        halign="center", size_hint_x=0.2)
                 mr.add_widget(_lbl_tmp)
                 _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-            _lbl_tmp=MDLabel(text=t("Как твоё настроение?"), font_style="Caption",
+            _lbl_tmp=MDLabel(text=_L("Как твоё настроение?"), font_style="Caption",
                                    theme_text_color="Secondary", halign="center",
                                    size_hint_y=None, height=S(18))
             ci.add_widget(_lbl_tmp)
             _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
             ci.add_widget(mr)
-        close=MDRaisedButton(text=t("Продолжать!"), size_hint=(1,None), height=S(48),
+        close=MDRaisedButton(text=_L("Продолжать!"), size_hint=(1,None), height=S(48),
                               elevation=0, md_bg_color=C["accent"])
         close.bind(on_release=lambda *_: mv.dismiss())
         ci.add_widget(close); card.add_widget(ci); mv.add_widget(card); mv.open()
@@ -20309,7 +20309,7 @@ class DailyTodoApp(MDApp):
             empty_box.add_widget(em_title)
             empty_box.add_widget(em_hint)
             if not q:
-                add_btn = MDRaisedButton(text=t("+ Добавить задачу"),
+                add_btn = MDRaisedButton(text=_L("+ Добавить задачу"),
                                           md_bg_color=C["accent"], elevation=0,
                                           size_hint_x=None, width=S(200),
                                           pos_hint={"center_x":0.5})
@@ -20383,7 +20383,7 @@ class DailyTodoApp(MDApp):
                       md_bg_color=C["surf"], padding=[S(20),S(16)])
         # Заголовок
         hdr = MDBoxLayout(orientation="horizontal", size_hint_y=None, height=S(32))
-        ttl = MDLabel(text=t("Быстрое добавление"), font_style="H6", bold=True,
+        ttl = MDLabel(text=_L("Быстрое добавление"), font_style="H6", bold=True,
                       theme_text_color="Custom", text_color=C["text"],
                       size_hint_x=1)
         ttl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -20393,7 +20393,7 @@ class DailyTodoApp(MDApp):
         hdr.add_widget(ttl); hdr.add_widget(close_btn)
         card.add_widget(hdr)
         # Поле ввода
-        tf = MDTextField(hint_text=t("Что нужно сделать?"),
+        tf = MDTextField(hint_text=_L("Что нужно сделать?"),
                          size_hint_y=None, height=S(48),
                          mode="rectangle")
         card.add_widget(tf)
@@ -20414,12 +20414,12 @@ class DailyTodoApp(MDApp):
         card.add_widget(cat_row)
         # Кнопка сохранить
         save_btn = MDRaisedButton(
-            text=t("Сохранить"), md_bg_color=C["accent"],
+            text=_L("Сохранить"), md_bg_color=C["accent"],
             size_hint_y=None, height=S(42), elevation=0)
         def _quick_save(*_):
             title = tf.text.strip()
             if not title:
-                tf.hint_text = t("Введите название!"); return
+                tf.hint_text = _L("Введите название!"); return
             import uuid
             from datetime import date
             tid = str(uuid.uuid4())[:8]
@@ -20461,7 +20461,7 @@ class DailyTodoApp(MDApp):
         card = MDCard(orientation="vertical", size_hint=(1,1),
                       radius=[S(16)], elevation=8,
                       md_bg_color=C["surf"], padding=[S(20),S(16)], spacing=S(10))
-        title_lbl = MDLabel(text=t("Язык"), font_style="H6", bold=True,
+        title_lbl = MDLabel(text=_L("Язык"), font_style="H6", bold=True,
                             theme_text_color="Custom", text_color=C["text"],
                             halign="center", size_hint_y=None, height=S(32))
         title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -20480,7 +20480,7 @@ class DailyTodoApp(MDApp):
             btn.bind(on_release=_choose)
             card.add_widget(btn)
 
-        close_btn = MDFlatButton(text=t("Закрыть"), size_hint_y=None, height=S(36))
+        close_btn = MDFlatButton(text=_L("Закрыть"), size_hint_y=None, height=S(36))
         close_btn.bind(on_release=lambda *_: mv.dismiss())
         card.add_widget(close_btn)
         mv.add_widget(card); mv.open()
@@ -20501,8 +20501,8 @@ class DailyTodoApp(MDApp):
 
     def _show_restart_dialog(self):
         dlg = MDDialog(
-            title=t("Язык"),
-            text=t("Язык изменится после перезапуска приложения"),
+            title=_L("Язык"),
+            text=_L("Язык изменится после перезапуска приложения"),
             buttons=[MDFlatButton(text="OK", on_release=lambda *_: dlg.dismiss())])
         dlg.open()
 
@@ -20515,28 +20515,28 @@ class DailyTodoApp(MDApp):
         card = MDCard(orientation="vertical", size_hint=(1,1),
                       radius=[S(16)], elevation=8,
                       md_bg_color=C["surf"], padding=[S(20),S(16)], spacing=S(10))
-        title_lbl = MDLabel(text=t("Резервная копия"), font_style="H6", bold=True,
+        title_lbl = MDLabel(text=_L("Резервная копия"), font_style="H6", bold=True,
                             theme_text_color="Custom", text_color=C["text"],
                             halign="center", size_hint_y=None, height=S(32))
         title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(title_lbl)
         info_lbl = MDLabel(
-            text=t("Сохраните файл в удобное место (например в Загрузки).\nЭтот файл можно загрузить позже, даже после переустановки."),
+            text=_L("Сохраните файл в удобное место (например в Загрузки).\nЭтот файл можно загрузить позже, даже после переустановки."),
             font_style="Caption", theme_text_color="Secondary",
             halign="center", size_hint_y=None, height=S(56))
         info_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(info_lbl)
-        save_btn = MDRaisedButton(text=t("Сохранить бэкап в файл..."),
+        save_btn = MDRaisedButton(text=_L("Сохранить бэкап в файл..."),
                                    md_bg_color=C["accent"], elevation=0,
                                    size_hint_y=None, height=S(44))
         save_btn.bind(on_release=lambda *_: (mv.dismiss(), self._export()))
         card.add_widget(save_btn)
-        load_btn = MDRaisedButton(text=t("Загрузить бэкап из файла..."),
+        load_btn = MDRaisedButton(text=_L("Загрузить бэкап из файла..."),
                                    md_bg_color=C["surf2"], elevation=0,
                                    size_hint_y=None, height=S(44))
         load_btn.bind(on_release=lambda *_: (mv.dismiss(), self._pick_import_file()))
         card.add_widget(load_btn)
-        close_btn = MDRaisedButton(text=t("Закрыть"), elevation=0,
+        close_btn = MDRaisedButton(text=_L("Закрыть"), elevation=0,
                                     md_bg_color=C["surf2"],
                                     size_hint_y=None, height=S(36))
         close_btn.bind(on_release=lambda *_: mv.dismiss())
@@ -20784,20 +20784,20 @@ class DailyTodoApp(MDApp):
         card = MDCard(orientation="vertical", size_hint=(1,1),
                       radius=[S(16)], elevation=8,
                       md_bg_color=C["surf"], padding=[S(20),S(16)], spacing=S(10))
-        title_lbl = MDLabel(text=t("Импорт задачи из текста"), font_style="H6", bold=True,
+        title_lbl = MDLabel(text=_L("Импорт задачи из текста"), font_style="H6", bold=True,
                             theme_text_color="Custom", text_color=C["text"],
                             halign="center", size_hint_y=None, height=S(32))
         title_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(title_lbl)
-        hint = MDLabel(text=t("Вставьте текст, полученный через 'Поделиться задачей'"),
+        hint = MDLabel(text=_L("Вставьте текст, полученный через 'Поделиться задачей'"),
                        font_style="Caption", theme_text_color="Secondary",
                        halign="center", size_hint_y=None, height=S(36))
         hint.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(hint)
-        tf = MDTextField(hint_text=t("Вставьте текст здесь..."),
+        tf = MDTextField(hint_text=_L("Вставьте текст здесь..."),
                          multiline=True, size_hint_y=None, height=S(120))
         card.add_widget(tf)
-        import_btn = MDRaisedButton(text=t("Импортировать"),
+        import_btn = MDRaisedButton(text=_L("Импортировать"),
                                      md_bg_color=C["accent"], elevation=0,
                                      size_hint_y=None, height=S(44))
         def _do_import(*_):
@@ -20813,7 +20813,7 @@ class DailyTodoApp(MDApp):
                 self._show_toast(f"Не удалось разобрать текст: {e}")
         import_btn.bind(on_release=_do_import)
         card.add_widget(import_btn)
-        close_btn = MDRaisedButton(text=t("Отмена"), elevation=0,
+        close_btn = MDRaisedButton(text=_L("Отмена"), elevation=0,
                                     md_bg_color=C["surf2"],
                                     size_hint_y=None, height=S(36))
         close_btn.bind(on_release=lambda *_: mv.dismiss())
@@ -20871,7 +20871,7 @@ class DailyTodoApp(MDApp):
                           halign="center", size_hint_y=None, height=S(28))
             lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             card.add_widget(lbl)
-        close_btn = MDRaisedButton(text=t("Закрыть"), md_bg_color=C["accent"],
+        close_btn = MDRaisedButton(text=_L("Закрыть"), md_bg_color=C["accent"],
                                    size_hint=(1,None), height=S(44), elevation=0)
         close_btn.bind(on_release=lambda *_: mv.dismiss())
         card.add_widget(close_btn)
