@@ -6,6 +6,18 @@ source.dir = .
 source.include_exts = py,png,jpg,kv,atlas,json
 version = 4.0
 
+# Иконка приложения (значок на рабочем столе / в списке приложений) и
+# экран загрузки. icon.filename — обычная плоская иконка (для старых
+# Android и как запасной вариант). icon.adaptive_* — современная
+# adaptive-иконка (Android 8.0+): система сама накладывает свою маску
+# (круг/квадрат/капля в зависимости от прошивки), поэтому фон и передний
+# план — отдельные слои.
+icon.filename = %(source.dir)s/icons/icon.png
+icon.adaptive_foreground.filename = %(source.dir)s/icons/icon_fg.png
+icon.adaptive_background.filename = %(source.dir)s/icons/icon_bg.png
+presplash.filename = %(source.dir)s/icons/presplash.png
+android.presplash_color = #F0714A
+
 requirements = python3==3.14.2,kivy==2.3.1,kivymd==1.2.0,plyer
 android.permissions = INTERNET, WRITE_EXTERNAL_STORAGE, READ_EXTERNAL_STORAGE, RECORD_AUDIO, POST_NOTIFICATIONS, WAKE_LOCK, FOREGROUND_SERVICE, FOREGROUND_SERVICE_SPECIAL_USE, RECEIVE_BOOT_COMPLETED, SCHEDULE_EXACT_ALARM, USE_EXACT_ALARM
 android.api = 34
