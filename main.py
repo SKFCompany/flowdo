@@ -258,6 +258,138 @@ TRANSLATIONS = {
         "УВЕДОМЛЕНИЯ": "NOTIFICATIONS",
         "ДАННЫЕ": "DATA",
         "ЯЗЫК": "LANGUAGE",
+        "Готово": "Done",
+        "Работа": "Work",
+        "Дом": "Home",
+        "Личное": "Personal",
+        "Покупки": "Shopping",
+        "Тренировки": "Workouts",
+        "Все": "All",
+        "Все категории": "All categories",
+        "{cat_label}: {total} задач  {done} выполнено": "{cat_label}: {total} tasks  {done} done",
+        "Роза": "Rose",
+        "Лаванда": "Lavender",
+        "Мята": "Mint",
+        "Ночь": "Night",
+        "Бронза": "Bronze",
+        "Океан": "Ocean",
+        "Бежевая": "Beige",
+        "тёмная": "dark",
+        "светлая": "light",
+        "Напоминания": "Reminders",
+        "Звук": "Sound",
+        "Вибрация": "Vibration",
+        "Импорт из текста": "Import from text",
+        "Тест уведомления": "Test notification",
+        "Показать debug-лог": "Show debug log",
+        "О приложении": "About",
+        "Настроение сегодня": "Mood today",
+        "\U0001f338 Ты сегодня молодец!": "\U0001f338 You're doing great today!",
+        "\u2728 Всё получится, верь в себя!": "\u2728 It'll all work out, believe in yourself!",
+        "\U0001f338 Ты справляешься лучше, чем думаешь!": "\U0001f338 You're doing better than you think!",
+        "\U0001f31f Продолжай в том же духе!": "\U0001f31f Keep it up!",
+        "\U0001f495 Ты лучшая — и это факт!": "\U0001f495 You're the best — and that's a fact!",
+        "\U0001f4aa Каждая выполненная задача — шаг вперёд!": "\U0001f4aa Every finished task is a step forward!",
+        "\U0001f338 Маленький прогресс — тоже прогресс!": "\U0001f338 Small progress is still progress!",
+        "\u2b50 Сегодня ты сделала всё возможное!": "\u2b50 You did everything you could today!",
+        "\U0001f381 Ты заслуживаешь лучшего — и ты к этому идёшь!": "\U0001f381 You deserve the best — and you're getting there!",
+        "\U0001f4ab Твои усилия не проходят бесследно!": "\U0001f4ab Your efforts aren't going unnoticed!",
+        "\U0001f338 Ничего страшного — завтра будет лучше!": "\U0001f338 It's okay — tomorrow will be better!",
+        "\u2728 Даже маленький шаг — это движение вперёд!": "\u2728 Even a small step is progress!",
+        "\U0001f495 Позаботься о себе сегодня — ты это заслужила!": "\U0001f495 Take care of yourself today — you've earned it!",
+        "\U0001f31f Не всё сразу — главное не останавливаться!": "\U0001f31f Not all at once — just keep going!",
+        "\U0001f4ab Иногда отдых — тоже продуктивность!": "\U0001f4ab Sometimes rest is productive too!",
+        "Дисциплина сегодня — результат завтра.": "Discipline today — results tomorrow.",
+        "Держи темп, не сбавляй!": "Keep the pace, don't slow down!",
+        "Фокус — единственный путь к результату.": "Focus is the only way to results.",
+        "Контролируй день — контролируй жизнь.": "Control your day — control your life.",
+        "Каждая выполненная задача приближает к цели.": "Every finished task brings you closer to your goal.",
+        "Сильные не ждут настроения — они действуют.": "The strong don't wait for motivation — they act.",
+        "Один шаг сегодня лучше тысячи планов на завтра.": "One step today beats a thousand plans for tomorrow.",
+        "Работа сделана — значит день прожит не зря.": "The work is done — the day wasn't wasted.",
+        "Даже в тяжёлый день — сделай хоть одно дело.": "Even on a hard day — get one thing done.",
+        "Перезагрузка — тоже часть стратегии.": "A reset is part of the strategy too.",
+        "Не каждый день будет продуктивным. Это нормально.": "Not every day will be productive. That's normal.",
+        "Завтра начни с малого — и наберёшь темп.": "Tomorrow, start small — and build momentum.",
+        "Отдохни сегодня, чтобы завтра взять своё.": "Rest today so you can seize tomorrow.",
+        "Время": "Time",
+        "Напоминание": "Reminder",
+        "Повтор": "Repeat",
+        "Дата": "Date",
+        "Высокий": "High",
+        "Средний": "Medium",
+        "Низкий": "Low",
+        "Срочно": "Urgent",
+        "Важно": "Important",
+        "Легкое": "Easy",
+        "За 10 минут": "10 minutes before",
+        "За 30 минут": "30 minutes before",
+        "За 1 час": "1 hour before",
+        "За 1 день": "1 day before",
+        "Не повторять": "Don't repeat",
+        "Каждый день": "Every day",
+        "Каждую неделю": "Every week",
+        "Каждый месяц": "Every month",
+        "Плохо": "Bad",
+        "Нейтрально": "Neutral",
+        "Нормально": "OK",
+        "Хорошо": "Good",
+        "Отлично": "Great",
+        "Настроение: {mood}": "Mood: {mood}",
+        "Flow·Do Фокус": "Flow·Do Focus",
+        "Фокус #{n} завершён! Отдохните.": "Focus #{n} complete! Take a break.",
+        "Фокус завершён! Задача: {title}": "Focus complete! Task: {title}",
+        "Отправляю тестовое уведомление...": "Sending a test notification...",
+        "Если вы видите это уведомление — всё работает!": "If you see this notification — it's working!",
+        "Flow\u00b7Do Тест": "Flow\u00b7Do Test",
+        "Задача выполнена: {title}": "Task completed: {title}",
+        "Время задачи: {title}": "Task time: {title}",
+        "Flow·Do — Задача": "Flow·Do — Task",
+        "Напоминание: {title} ({remind})": "Reminder: {title} ({remind})",
+        "Flow·Do — Напоминание": "Flow·Do — Reminder",
+        "Найдено: {n}  |  \u2705 {done}  \u23f3 {undone}": "Found: {n}  |  \u2705 {done}  \u23f3 {undone}",
+        "Ничего не найдено": "Nothing found",
+        'Ничего не найдено по запросу "{q}"': 'Nothing found for "{q}"',
+        "Попробуйте другой запрос или измените фильтры": "Try a different search or change the filters",
+        "Все задачи выполнены!": "All tasks done!",
+        "Отличная работа! Добавьте новые задачи нажав +": "Great job! Add new tasks with the + button",
+        "Нет задач": "No tasks",
+        "Нажмите + чтобы добавить первую задачу": "Tap + to add your first task",
+        "Нажмите, чтобы добавить заметку...": "Tap to add a note...",
+        "Нет активных задач": "No active tasks",
+        "Задача не найдена": "Task not found",
+        "Доброе утро,": "Good morning,",
+        "Добрый день,": "Good afternoon,",
+        "Добрый вечер,": "Good evening,",
+        "Фокус на: ": "Focus on: ",
+        "25 мин": "25 min",
+        "5 мин": "5 min",
+        "15 мин": "15 min",
+        "КОРОТКИЙ ОТДЫХ": "SHORT BREAK",
+        "ДЛИННЫЙ ОТДЫХ": "LONG BREAK",
+        "Отдых закончен — время работать!": "Break's over — time to work!",
+        "[FlowDo задача] {title}\n": "[FlowDo task] {title}\n",
+        "Вставьте этот текст в Flow·Do -> Настройки -> "
+        "Резервная копия -> Импорт из текста, чтобы добавить задачу.\n\n":
+            "Paste this text into Flow·Do -> Settings -> "
+            "Backup -> Import from text to add the task.\n\n",
+        "Задача из Flow\u00b7Do": "Task from Flow\u00b7Do",
+        "Поделиться задачей": "Share task",
+        "Ошибка: {e}": "Error: {e}",
+        'Не удалось открыть меню "Поделиться": {e}': 'Could not open the "Share" menu: {e}',
+        "Скопировано в буфер обмена!": "Copied to clipboard!",
+        "Поделиться доступно только на Android": "Sharing is only available on Android",
+        "Поделиться": "Share",
+        "Файл не найден: {e}\nПуть: {path}": "File not found: {e}\nPath: {path}",
+        "(лог пуст)": "(log is empty)",
+        "Ошибка сохранения: {e}": "Save error: {e}",
+        "Ошибка запуска: {e}": "Launch error: {e}",
+        "Не удалось открыть диалог сохранения: {e}": "Could not open the save dialog: {e}",
+        "Ошибка чтения файла: {e}": "File read error: {e}",
+        "Не удалось открыть выбор файла: {e}": "Could not open the file picker: {e}",
+        "Ошибка импорта: {e}": "Import error: {e}",
+        "Не удалось разобрать текст: {e}": "Could not parse the text: {e}",
+        "Ошибка открытия файла: {e}": "File open error: {e}",
     },
     "kk": {
         "  Добавить задачу": "  Тапсырма қосу",
@@ -364,6 +496,138 @@ TRANSLATIONS = {
         "УВЕДОМЛЕНИЯ": "ХАБАРЛАНДЫРУЛАР",
         "ДАННЫЕ": "ДЕРЕКТЕР",
         "ЯЗЫК": "ТІЛ",
+        "Готово": "Дайын",
+        "Работа": "Жұмыс",
+        "Дом": "Үй",
+        "Личное": "Жеке",
+        "Покупки": "Сатып алу",
+        "Тренировки": "Жаттығулар",
+        "Все": "Барлығы",
+        "Все категории": "Барлық санаттар",
+        "{cat_label}: {total} задач  {done} выполнено": "{cat_label}: {total} тапсырма  {done} орындалды",
+        "Роза": "Раушан",
+        "Лаванда": "Лаванда",
+        "Мята": "Жалбыз",
+        "Ночь": "Түн",
+        "Бронза": "Қола",
+        "Океан": "Мұхит",
+        "Бежевая": "Беж",
+        "тёмная": "қараңғы",
+        "светлая": "ашық",
+        "Напоминания": "Еске салулар",
+        "Звук": "Дыбыс",
+        "Вибрация": "Дірілдеу",
+        "Импорт из текста": "Мәтіннен импорттау",
+        "Тест уведомления": "Хабарландыруды тексеру",
+        "Показать debug-лог": "Debug-логты көрсету",
+        "О приложении": "Қолданба туралы",
+        "Настроение сегодня": "Бүгінгі көңіл-күй",
+        "\U0001f338 Ты сегодня молодец!": "\U0001f338 Бүгін керемет болдың!",
+        "\u2728 Всё получится, верь в себя!": "\u2728 Бәрі де болады, өзіңе сен!",
+        "\U0001f338 Ты справляешься лучше, чем думаешь!": "\U0001f338 Ойлағаныңнан да жақсы істеп жатырсың!",
+        "\U0001f31f Продолжай в том же духе!": "\U0001f31f Осылай жалғастыра бер!",
+        "\U0001f495 Ты лучшая — и это факт!": "\U0001f495 Сен ең үздіксің — бұл шындық!",
+        "\U0001f4aa Каждая выполненная задача — шаг вперёд!": "\U0001f4aa Әр орындалған тапсырма — алға қадам!",
+        "\U0001f338 Маленький прогресс — тоже прогресс!": "\U0001f338 Кішкентай ілгерілеу де — ілгерілеу!",
+        "\u2b50 Сегодня ты сделала всё возможное!": "\u2b50 Бүгін қолыңнан келгеннің бәрін жасадың!",
+        "\U0001f381 Ты заслуживаешь лучшего — и ты к этому идёшь!": "\U0001f381 Сен жақсыны лайықсың — және оған келе жатырсың!",
+        "\U0001f4ab Твои усилия не проходят бесследно!": "\U0001f4ab Күш-жігерің іздеусіз қалмайды!",
+        "\U0001f338 Ничего страшного — завтра будет лучше!": "\U0001f338 Ештеңе етпейді — ертең жақсырақ болады!",
+        "\u2728 Даже маленький шаг — это движение вперёд!": "\u2728 Кішкентай қадам да — алға жылжу!",
+        "\U0001f495 Позаботься о себе сегодня — ты это заслужила!": "\U0001f495 Бүгін өзіңе қамқор бол — сен осыны лайықсың!",
+        "\U0001f31f Не всё сразу — главное не останавливаться!": "\U0001f31f Бәрі бірден болмайды — тоқтамау маңызды!",
+        "\U0001f4ab Иногда отдых — тоже продуктивность!": "\U0001f4ab Кейде демалыс та — өнімділік!",
+        "Дисциплина сегодня — результат завтра.": "Бүгінгі тәртіп — ертеңгі нәтиже.",
+        "Держи темп, не сбавляй!": "Қарқынды сақта, бәсеңдетпе!",
+        "Фокус — единственный путь к результату.": "Назар аудару — нәтижеге жалғыз жол.",
+        "Контролируй день — контролируй жизнь.": "Күніңді бақыла — өміріңді бақыла.",
+        "Каждая выполненная задача приближает к цели.": "Әр орындалған тапсырма мақсатқа жақындатады.",
+        "Сильные не ждут настроения — они действуют.": "Мықтылар көңіл-күйді күтпейді — олар әрекет етеді.",
+        "Один шаг сегодня лучше тысячи планов на завтра.": "Бүгінгі бір қадам ертеңгі мың жоспардан жақсы.",
+        "Работа сделана — значит день прожит не зря.": "Жұмыс бітті — демек, күн бекер өтпеді.",
+        "Даже в тяжёлый день — сделай хоть одно дело.": "Ауыр күнде де — кем дегенде бір іс тындыр.",
+        "Перезагрузка — тоже часть стратегии.": "Қайта жүктелу де — стратегияның бір бөлігі.",
+        "Не каждый день будет продуктивным. Это нормально.": "Әр күн өнімді бола бермейді. Бұл қалыпты жағдай.",
+        "Завтра начни с малого — и наберёшь темп.": "Ертең кішкентайдан баста — қарқын аласың.",
+        "Отдохни сегодня, чтобы завтра взять своё.": "Бүгін демал, ертең өз дегеніңе жет.",
+        "Время": "Уақыт",
+        "Напоминание": "Еске салу",
+        "Повтор": "Қайталау",
+        "Дата": "Күні",
+        "Высокий": "Жоғары",
+        "Средний": "Орташа",
+        "Низкий": "Төмен",
+        "Срочно": "Шұғыл",
+        "Важно": "Маңызды",
+        "Легкое": "Жеңіл",
+        "За 10 минут": "10 минут бұрын",
+        "За 30 минут": "30 минут бұрын",
+        "За 1 час": "1 сағат бұрын",
+        "За 1 день": "1 күн бұрын",
+        "Не повторять": "Қайталамау",
+        "Каждый день": "Күн сайын",
+        "Каждую неделю": "Апта сайын",
+        "Каждый месяц": "Ай сайын",
+        "Плохо": "Жаман",
+        "Нейтрально": "Бейтарап",
+        "Нормально": "Қалыпты",
+        "Хорошо": "Жақсы",
+        "Отлично": "Керемет",
+        "Настроение: {mood}": "Көңіл-күй: {mood}",
+        "Flow·Do Фокус": "Flow·Do Фокус",
+        "Фокус #{n} завершён! Отдохните.": "Фокус #{n} аяқталды! Демалыңыз.",
+        "Фокус завершён! Задача: {title}": "Фокус аяқталды! Тапсырма: {title}",
+        "Отправляю тестовое уведомление...": "Тест хабарландыруы жіберілуде...",
+        "Если вы видите это уведомление — всё работает!": "Бұл хабарландыруды көріп тұрсаңыз — бәрі жұмыс істейді!",
+        "Flow\u00b7Do Тест": "Flow\u00b7Do Тест",
+        "Задача выполнена: {title}": "Тапсырма орындалды: {title}",
+        "Время задачи: {title}": "Тапсырма уақыты: {title}",
+        "Flow·Do — Задача": "Flow·Do — Тапсырма",
+        "Напоминание: {title} ({remind})": "Еске салу: {title} ({remind})",
+        "Flow·Do — Напоминание": "Flow·Do — Еске салу",
+        "Найдено: {n}  |  \u2705 {done}  \u23f3 {undone}": "Табылды: {n}  |  \u2705 {done}  \u23f3 {undone}",
+        "Ничего не найдено": "Ештеңе табылмады",
+        'Ничего не найдено по запросу "{q}"': '«{q}» бойынша ештеңе табылмады',
+        "Попробуйте другой запрос или измените фильтры": "Басқа сұрау көріңіз немесе сүзгілерді өзгертіңіз",
+        "Все задачи выполнены!": "Барлық тапсырмалар орындалды!",
+        "Отличная работа! Добавьте новые задачи нажав +": "Керемет жұмыс! + арқылы жаңа тапсырма қосыңыз",
+        "Нет задач": "Тапсырма жоқ",
+        "Нажмите + чтобы добавить первую задачу": "Алғашқы тапсырманы қосу үшін + басыңыз",
+        "Нажмите, чтобы добавить заметку...": "Жазба қосу үшін басыңыз...",
+        "Нет активных задач": "Белсенді тапсырма жоқ",
+        "Задача не найдена": "Тапсырма табылмады",
+        "Доброе утро,": "Қайырлы таң,",
+        "Добрый день,": "Қайырлы күн,",
+        "Добрый вечер,": "Қайырлы кеш,",
+        "Фокус на: ": "Фокус: ",
+        "25 мин": "25 мин",
+        "5 мин": "5 мин",
+        "15 мин": "15 мин",
+        "КОРОТКИЙ ОТДЫХ": "ҚЫСҚА ҮЗІЛІС",
+        "ДЛИННЫЙ ОТДЫХ": "ҰЗАҚ ҮЗІЛІС",
+        "Отдых закончен — время работать!": "Үзіліс аяқталды — жұмыс істеу уақыты!",
+        "[FlowDo задача] {title}\n": "[FlowDo тапсырмасы] {title}\n",
+        "Вставьте этот текст в Flow·Do -> Настройки -> "
+        "Резервная копия -> Импорт из текста, чтобы добавить задачу.\n\n":
+            "Бұл мәтінді Flow·Do -> Параметрлер -> "
+            "Сақтық көшірме -> Мәтіннен импорттау бөліміне қойып, тапсырма қосыңыз.\n\n",
+        "Задача из Flow\u00b7Do": "Flow\u00b7Do тапсырмасы",
+        "Поделиться задачей": "Тапсырманы бөлісу",
+        "Ошибка: {e}": "Қате: {e}",
+        'Не удалось открыть меню "Поделиться": {e}': '"Бөлісу" мәзірін ашу мүмкін болмады: {e}',
+        "Скопировано в буфер обмена!": "Аралық сақтағышқа көшірілді!",
+        "Поделиться доступно только на Android": "Бөлісу тек Android-та қолжетімді",
+        "Поделиться": "Бөлісу",
+        "Файл не найден: {e}\nПуть: {path}": "Файл табылмады: {e}\nЖол: {path}",
+        "(лог пуст)": "(лог бос)",
+        "Ошибка сохранения: {e}": "Сақтау қатесі: {e}",
+        "Ошибка запуска: {e}": "Іске қосу қатесі: {e}",
+        "Не удалось открыть диалог сохранения: {e}": "Сақтау терезесін ашу мүмкін болмады: {e}",
+        "Ошибка чтения файла: {e}": "Файлды оқу қатесі: {e}",
+        "Не удалось открыть выбор файла: {e}": "Файл таңдау терезесін ашу мүмкін болмады: {e}",
+        "Ошибка импорта: {e}": "Импорттау қатесі: {e}",
+        "Не удалось разобрать текст: {e}": "Мәтінді талдау мүмкін болмады: {e}",
+        "Ошибка открытия файла: {e}": "Файлды ашу қатесі: {e}",
     },
 }
 
@@ -561,7 +825,7 @@ def _pick_motivation(is_fem, done_today, total_today, mood_val):
         pool = MOTIVATIONS_M_LOW if is_low else MOTIVATIONS_M
     # Индекс: день + кол-во выполненных (меняется при выполнении задач)
     idx = (day_seed + done_today) % len(pool)
-    return pool[idx]
+    return _L(pool[idx])
 
 REPEAT_OPTIONS  = ["Не повторять","Каждый день","Каждую неделю","Каждый месяц"]
 REMIND_OPTIONS  = ["Не выбрано","За 10 минут","За 30 минут","За 1 час","За 1 день"]
@@ -15943,7 +16207,7 @@ class TaskCard(MDCard):
                 tr=MDBoxLayout(orientation="horizontal",spacing=S(4),padding=[S(8),0])
                 tr.add_widget(MDIconButton(icon=ICONS[self.priority],size_hint_x=None,
                                             width=S(18),theme_text_color="Custom",text_color=pcol))
-                _lbl_tmp=MDLabel(text=ptxt,font_style="Caption",
+                _lbl_tmp=MDLabel(text=_L(ptxt),font_style="Caption",
                                        theme_text_color="Custom",text_color=pcol,
                                        halign="left", valign="middle")
                 _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
@@ -16026,7 +16290,7 @@ class TaskCard(MDCard):
             if done_today > 0 and done_today % 3 == 0:
                 Clock.schedule_once(lambda *_: self.app._show_motivation_popup(), 0.6)
             # уведомление
-            self.app._send_notification(f"Задача выполнена: {self.title}")
+            self.app._send_notification(_L("Задача выполнена: {title}", title=self.title))
 
     def _delete_confirm(self):
         from kivy.uix.modalview import ModalView
@@ -16066,7 +16330,7 @@ class TaskCard(MDCard):
                 setattr(app._pg_pomodoro, '_task_id', self.task_id) or
                 setattr(app._pg_pomodoro._task_lbl, 'text', self.title[:40])
             ), 0.1)
-            app._show_toast("Фокус на: " + self.title[:25])
+            app._show_toast(_L("Фокус на: ") + self.title[:25])
 
     def _show_menu(self, inst):
         from kivy.uix.modalview import ModalView
@@ -16080,9 +16344,9 @@ class TaskCard(MDCard):
              lambda: self.app.open_task_detail(self.task_id)),
             ("pencil-outline","Редактировать",C["accent"],
              lambda: self.app.open_task_form(self.task_id)),
-            ("clock-play","Фокус",C["accent"],
+            ("clock-play",_L("Фокус"),C["accent"],
              lambda: self._start_pomodoro_for_task()),
-            ("share-variant","Поделиться",C["accent"],
+            ("share-variant",_L("Поделиться"),C["accent"],
              lambda: self.app.share_task(self.task_id)),
             ("trash-can-outline","Удалить",C["red"],self._delete)]:
             row=MDBoxLayout(orientation="horizontal", spacing=S(6),
@@ -16465,7 +16729,7 @@ class TaskFormScreen(MDScreen):
             br2=MDBoxLayout(orientation="horizontal", spacing=S(4), padding=[S(6),0], size_hint=(1,1))
             br2.add_widget(MDIconButton(icon=ico_p, size_hint_x=None, width=S(24),
                                          theme_text_color="Custom", text_color=tc))
-            _lbl_tmp=MDLabel(text=lbl_t, font_style="Caption",
+            _lbl_tmp=MDLabel(text=_L(lbl_t), font_style="Caption",
                                    theme_text_color="Custom", text_color=tc,
                                    halign="left", valign="middle",
                                    shorten=True, shorten_from="right")
@@ -16484,16 +16748,16 @@ class TaskFormScreen(MDScreen):
         p_inn=MDBoxLayout(orientation="vertical", adaptive_height=True)
         date_disp=self._date_val+(f"  {self._time_val}" if self._time_val else "")
         r_dt,self._date_lbl=self._param_row(
-            "calendar-outline","Дата",self._date_val or "Не выбрано",self._open_date_picker)
+            "calendar-outline",_L("Дата"),_L(self._date_val) if self._date_val else _L("Не выбрано"),self._open_date_picker)
         p_inn.add_widget(r_dt); self._sep(p_inn)
         r_tm,self._time_lbl=self._param_row(
-            "clock-outline","Время",self._time_val or "Не выбрано",self._open_time_picker)
+            "clock-outline",_L("Время"),_L(self._time_val) if self._time_val else _L("Не выбрано"),self._open_time_picker)
         p_inn.add_widget(r_tm); self._sep(p_inn)
         r_rem,self._remind_lbl=self._param_row(
-            "bell-outline","Напоминание",self._remind_val or "Не выбрано",self._pick_reminder)
+            "bell-outline",_L("Напоминание"),_L(self._remind_val) if self._remind_val else _L("Не выбрано"),self._pick_reminder)
         p_inn.add_widget(r_rem); self._sep(p_inn)
         r_rep,self._repeat_lbl=self._param_row(
-            "repeat","Повтор",self._repeat_val,self._pick_repeat)
+            "repeat",_L("Повтор"),_L(self._repeat_val),self._pick_repeat)
         p_inn.add_widget(r_rep)
         params.add_widget(p_inn); inn.add_widget(params)
         inn.add_widget(Widget(size_hint_y=None, height=S(10)))
@@ -16513,7 +16777,7 @@ class TaskFormScreen(MDScreen):
                               width=S(32), theme_text_color="Custom", text_color=C["accent"]))
         ni.add_widget(note_hdr)
         self._note_preview = MDLabel(
-            text=self._note_text if self._note_text else "Нажмите, чтобы добавить заметку...",
+            text=self._note_text if self._note_text else _L("Нажмите, чтобы добавить заметку..."),
             font_style="Body2",
             theme_text_color="Custom",
             text_color=C["text"] if self._note_text else C["text2"],
@@ -16560,7 +16824,7 @@ class TaskFormScreen(MDScreen):
                               md_bg_color=C["accent"], elevation=0)
             def _ok(btn_inst):
                 self._note_text = nf.text.strip()
-                preview_text = self._note_text if self._note_text else "Нажмите, чтобы добавить заметку..."
+                preview_text = self._note_text if self._note_text else _L("Нажмите, чтобы добавить заметку...")
                 self._note_preview.text = preview_text
                 self._note_preview.text_color = C["text"] if self._note_text else C["text2"]
                 mv_note.dismiss()
@@ -16831,7 +17095,7 @@ class TaskFormScreen(MDScreen):
                     md_bg_color=C["surf"], padding=[S(6),S(8)])
         for opt in opts:
             row=MDBoxLayout(size_hint_y=None, height=S(50), padding=[S(16),0])
-            opt_lbl=MDLabel(text=opt, font_style="Body1",
+            opt_lbl=MDLabel(text=_L(opt), font_style="Body1",
                                 theme_text_color="Custom",
                                 text_color=C["accent"] if opt==cur else C["text"],
                                 halign="left", valign="middle")
@@ -16839,7 +17103,7 @@ class TaskFormScreen(MDScreen):
             row.add_widget(opt_lbl)
             def _sel(w,t,o=opt,r=row):
                 if r.collide_point(*t.pos):
-                    setter(o); lbl.text=o; mv.dismiss(); return True
+                    setter(o); lbl.text=_L(o); mv.dismiss(); return True
             row.bind(on_touch_up=_sel); card.add_widget(row)
         mv.add_widget(card); mv.open()
 
@@ -17249,7 +17513,7 @@ class PomodoroScreen(MDScreen):
         # ── Режимы ───────────────────────────────────────────────────────
         mode_row = MDBoxLayout(orientation="horizontal", spacing=S(8),
                                 size_hint_y=None, height=S(38))
-        for label, mode in [("25 мин", "work"), ("5 мин", "short"), ("15 мин", "long")]:
+        for label, mode in [(_L("25 мин"), "work"), (_L("5 мин"), "short"), (_L("15 мин"), "long")]:
             mb = MDRaisedButton(text=label, elevation=0, size_hint_x=1,
                                  md_bg_color=C["accent"] if mode==self._mode else C["surf2"])
             mb.bind(on_release=lambda *_, m=mode, b=mb: self._set_mode(m))
@@ -17262,7 +17526,7 @@ class PomodoroScreen(MDScreen):
     def _set_mode(self, mode):
         self._mode = mode
         secs_map = {"work": self.WORK_SEC, "short": self.SHORT_SEC, "long": self.LONG_SEC}
-        labels = {"work": "ФОКУС", "short": "КОРОТКИЙ ОТДЫХ", "long": "ДЛИННЫЙ ОТДЫХ"}
+        labels = {"work": _L("ФОКУС"), "short": _L("КОРОТКИЙ ОТДЫХ"), "long": _L("ДЛИННЫЙ ОТДЫХ")}
         self._secs = secs_map[mode]
         self._running = False
         if self._clock_ev:
@@ -17303,18 +17567,18 @@ class PomodoroScreen(MDScreen):
             # Отметить задачу как выполненную если выбрана
             if self._task_id and self._task_id in self._app.tasks:
                 task = self._app.tasks[self._task_id]
-                msg = f"Фокус завершён! Задача: {task['title'][:30]}"
+                msg = _L("Фокус завершён! Задача: {title}", title=task['title'][:30])
             else:
-                msg = f"Фокус #{self._sessions} завершён! Отдохните."
+                msg = _L("Фокус #{n} завершён! Отдохните.", n=self._sessions)
             self._app._show_toast(msg)
-            self._app._send_notification(msg, "Flow·Do Фокус")
+            self._app._send_notification(msg, _L("Flow·Do Фокус"))
             # Авто-переключение на отдых
             if self._sessions % 4 == 0:
                 self._set_mode("long")
             else:
                 self._set_mode("short")
         else:
-            self._app._show_toast("Отдых закончен — время работать!")
+            self._app._show_toast(_L("Отдых закончен — время работать!"))
             self._set_mode("work")
 
     def _reset(self, *_):
@@ -17353,7 +17617,7 @@ class PomodoroScreen(MDScreen):
         from kivy.uix.scrollview import ScrollView
         tasks = [t for t in self._app.tasks.values() if not t.get("done")]
         if not tasks:
-            self._app._show_toast("Нет активных задач")
+            self._app._show_toast(_L("Нет активных задач"))
             return
         mv = ModalView(background_color=(0,0,0,0.6), auto_dismiss=True,
                        size_hint=(0.9, 0.7),
@@ -17509,9 +17773,9 @@ class DailyTodoApp(MDApp):
             with open(path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
             # последние 80 строк (служба и приложение в одном файле)
-            log_text = "".join(lines[-80:]) if lines else "(лог пуст)"
+            log_text = "".join(lines[-80:]) if lines else _L("(лог пуст)")
         except Exception as e:
-            log_text = f"Файл не найден: {e}\nПуть: {path}"
+            log_text = _L("Файл не найден: {e}\nПуть: {path}", e=e, path=path)
 
         mv = ModalView(background_color=(0,0,0,0.6), auto_dismiss=True,
                        size_hint=(0.95, 0.8),
@@ -17559,11 +17823,11 @@ class DailyTodoApp(MDApp):
     def _test_notification(self, *_):
         """Сразу отправляет тестовое уведомление — для проверки что
         уведомления вообще работают на этом устройстве."""
-        self._show_toast("Отправляю тестовое уведомление...")
+        self._show_toast(_L("Отправляю тестовое уведомление..."))
         Clock.schedule_once(
             lambda *_: self._send_notification(
-                "Если вы видите это уведомление — всё работает!",
-                "Flow\u00b7Do Тест"), 0.3)
+                _L("Если вы видите это уведомление — всё работает!"),
+                _L("Flow\u00b7Do Тест")), 0.3)
 
     def _request_notification_permission(self, *_):
         """Android 13+ (API 33) требует runtime-разрешение POST_NOTIFICATIONS.
@@ -17731,7 +17995,7 @@ class DailyTodoApp(MDApp):
             if task_dt > now:
                 self._set_alarm(am, ctx, Intent, PendingIntent, BuildVersion,
                                 task_dt, tid, "time",
-                                f"Время задачи: {title}", "Flow·Do — Задача")
+                                _L("Время задачи: {title}", title=title), _L("Flow·Do — Задача"))
                 alarms_set += 1
 
             # Планируем будильник для напоминания
@@ -17742,8 +18006,8 @@ class DailyTodoApp(MDApp):
                 if remind_dt > now:
                     self._set_alarm(am, ctx, Intent, PendingIntent, BuildVersion,
                                     remind_dt, tid, "remind",
-                                    f"Напоминание: {title} ({remind_s})",
-                                    "Flow·Do — Напоминание")
+                                    _L("Напоминание: {title} ({remind})", title=title, remind=_L(remind_s)),
+                                    _L("Flow·Do — Напоминание"))
                     alarms_set += 1
 
         self._log_debug(f"_schedule_task_alarms: set {alarms_set} alarms")
@@ -18005,7 +18269,7 @@ class DailyTodoApp(MDApp):
                 # окно срабатывания: 5 минут после момента (с запасом на случай редких тиков Clock в фоне)
                 if task_dt <= now <= task_dt + _td(minutes=60):
                     self._log_debug(f"  -> firing TIME notification for '{title}'")
-                    self._send_notification(f"Время задачи: {title}", "Flow·Do — Задача")
+                    self._send_notification(_L("Время задачи: {title}", title=title), _L("Flow·Do — Задача"))
                     self._notified_keys.add(key_time)
                     changed = True
 
@@ -18022,8 +18286,8 @@ class DailyTodoApp(MDApp):
                     if remind_dt <= now <= remind_dt + _td(minutes=60):
                         self._log_debug(f"  -> firing REMINDER notification for '{title}'")
                         self._send_notification(
-                            f"Напоминание: {title} ({remind_s.lower()})",
-                            "Flow·Do — Напоминание")
+                            _L("Напоминание: {title} ({remind})", title=title, remind=_L(remind_s).lower()),
+                            _L("Flow·Do — Напоминание"))
                         self._notified_keys.add(key_remind)
                         changed = True
             elif remind_s and remind_s != "Не выбрано":
@@ -18162,7 +18426,30 @@ class DailyTodoApp(MDApp):
                                halign="center", size_hint_y=None, height=S(52))
         ci.add_widget(_lbl_tmp)
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-        _init_mot_text = random.choice(MOTIVATIONS_F)
+
+        # Язык — доступен уже на экране приветствия, до ввода имени
+        _lbl_tmp=MDLabel(text=_L("Язык"), font_style="Caption",
+                               theme_text_color="Secondary", size_hint_y=None, height=S(20),
+                      halign="left", valign="middle")
+        ci.add_widget(_lbl_tmp)
+        _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
+        lang_row=MDBoxLayout(orientation="horizontal", spacing=S(6),
+                             size_hint_y=None, height=S(40))
+        cur_lang = getattr(self, "lang", "ru")
+        self._wl_btns = {}
+        for code, label in [("ru","RU"), ("en","EN"), ("kk","KK")]:
+            is_cur = (cur_lang == code)
+            lb = MDRaisedButton(text=label, size_hint_x=1, elevation=0,
+                                md_bg_color=C["accent"] if is_cur else C["surf2"])
+            lb.text_color = (1,1,1,1) if is_cur else C["text"]
+            def _pick(_btn, code=code):
+                self._wel_set_language(code)
+            lb.bind(on_release=_pick)
+            lang_row.add_widget(lb)
+            self._wl_btns[code] = lb
+        ci.add_widget(lang_row)
+
+        _init_mot_text = _L(random.choice(MOTIVATIONS_F))
         self._w_quote=EmojiLabel(text=_init_mot_text,
                                font_style="Subtitle2",
                                halign="center", size_hint_y=None, height=S(42),
@@ -18198,7 +18485,34 @@ class DailyTodoApp(MDApp):
         sc.add_widget(root); self.sm.add_widget(sc)
         self.sm.current="welcome"
 
+    def _wel_set_language(self, code):
+        """Меняет язык прямо на экране приветствия — до того как введено
+        имя. Пересобираем экран сразу же (тот же приём, что и в
+        _wel_gender для смены пола/темы), сохраняя уже введённое имя и
+        выбранный пол."""
+        if code not in ("ru","en","kk"):
+            return
+        global APP_LANG
+        self.lang = code
+        APP_LANG = code
+        try:
+            self._save_config()
+        except Exception:
+            pass
+        saved_name = getattr(self._wf_name, "text", "") if hasattr(self, "_wf_name") else ""
+        saved_gender = getattr(self, "_onboarding_gender", "female")
+        if self.sm.has_screen("welcome"):
+            self.sm.remove_widget(self.sm.get_screen("welcome"))
+        self._build_welcome()
+        if saved_name and hasattr(self, "_wf_name"):
+            self._wf_name.text = saved_name
+        if saved_gender == "male":
+            self._wel_gender("male")
+            if saved_name and hasattr(self, "_wf_name"):
+                self._wf_name.text = saved_name
+
     def _wel_gender(self, g):
+        self._onboarding_gender = g
         tn="Бронза" if g=="male" else "Роза"
         C.update(THEMES[tn]); self.theme_name=tn
         self._apply_md_style()
@@ -18219,7 +18533,7 @@ class DailyTodoApp(MDApp):
         except Exception:
             pass
         if hasattr(self, "_w_quote"):
-            self._w_quote = update_emoji_label(self._w_quote, random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F))
+            self._w_quote = update_emoji_label(self._w_quote, _L(random.choice(MOTIVATIONS_M if g=="male" else MOTIVATIONS_F)))
 
     def _welcome_go(self, *_):
         name=self._wf_name.text.strip()
@@ -18354,7 +18668,7 @@ class DailyTodoApp(MDApp):
     def _make_topbar(self):
         is_fem=self._is_fem()
         now=datetime.now(); h=now.hour
-        greet="Доброе утро," if h<12 else ("Добрый день," if h<18 else "Добрый вечер,")
+        greet=_L("Доброе утро,") if h<12 else (_L("Добрый день,") if h<18 else _L("Добрый вечер,"))
 
         if is_fem:
             # Женская тема: приветствие + имя + дата
@@ -18725,7 +19039,7 @@ class DailyTodoApp(MDApp):
                 em_img=KivyImage(source=em_path, size_hint=(None,None),
                                   size=(S(20),S(20)), allow_stretch=True, keep_ratio=True)
                 inner.add_widget(em_img)
-        txt_lbl=MDLabel(text=cat, font_style="Caption", bold=sel,
+        txt_lbl=MDLabel(text=_L(cat), font_style="Caption", bold=sel,
                         halign="center", valign="middle",
                         theme_text_color="Custom", text_color=tc,
                         size_hint_x=1)
@@ -19173,7 +19487,7 @@ class DailyTodoApp(MDApp):
             mood_box._bg_rect=KRR(pos=mood_box.pos, size=mood_box.size, radius=[S(14)])
         mood_box.bind(pos=lambda w,v: setattr(w._bg_rect,'pos',v),
                       size=lambda w,v: setattr(w._bg_rect,'size',v))
-        mood_title = _L("Как твоё настроение сегодня?") if is_fem else "Настроение сегодня"
+        mood_title = _L("Как твоё настроение сегодня?") if is_fem else _L("Настроение сегодня")
         mood_box.add_widget(MDLabel(text=mood_title,
                                     font_style="Subtitle2", bold=True,
                                     theme_text_color="Primary",
@@ -19331,7 +19645,7 @@ class DailyTodoApp(MDApp):
         for b in getattr(self,"_mood_btns",[]):
             if hasattr(b,"_mv"):
                 b.md_bg_color = C["accent"] if b._mv==v else C["surf2"]
-        self._show_toast(f"Настроение: {MOOD_LABELS[v-1]}")
+        self._show_toast(_L("Настроение: {mood}", mood=_L(MOOD_LABELS[v-1])))
 
     def _refresh_stats(self):
         if not hasattr(self,"_sd_lbl"): return
@@ -19489,7 +19803,7 @@ class DailyTodoApp(MDApp):
                       radius=[S(22)], elevation=0,
                       md_bg_color=C["accent"] if gactive else C["surf2"],
                       padding=[S(4),0])
-            gl=MDLabel(text=glabel, font_style="Body2", bold=True,
+            gl=MDLabel(text=_L(glabel), font_style="Body2", bold=True,
                         halign="center", valign="middle", theme_text_color="Custom",
                         text_color=(1,1,1,1) if gactive else C["text2"])
             gl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
@@ -19538,7 +19852,7 @@ class DailyTodoApp(MDApp):
                        md_bg_color=C["surf"], padding=[S(4),S(4)])
         notif_c.bind(minimum_height=notif_c.setter("height"))
         ni=MDBoxLayout(orientation="vertical", adaptive_height=True)
-        for ntxt,nstate in [("Напоминания",True),("Звук",True),("Вибрация",False)]:
+        for ntxt,nstate in [(_L("Напоминания"),True),(_L("Звук"),True),(_L("Вибрация"),False)]:
             ni.add_widget(self._notif_row(ntxt, nstate))
         plyer_lbl=MDLabel(
             text=_L("[OK] plyer активен") if PLYER_OK else "[!] pip install plyer",
@@ -19564,12 +19878,12 @@ class DailyTodoApp(MDApp):
         data_c.bind(minimum_height=data_c.setter("height"))
         di=MDBoxLayout(orientation="vertical", adaptive_height=True)
         for dtxt,dico,dcb in [
-            ("Резервная копия","content-save-outline",self._backup_restore),
-            ("Импорт из текста","clipboard-text-outline",self.import_from_text),
-            ("Тест уведомления","bell-ring-outline",self._test_notification),
-            ("Показать debug-лог","text-box-search-outline",self._show_debug_log),
+            (_L("Резервная копия"),"content-save-outline",self._backup_restore),
+            (_L("Импорт из текста"),"clipboard-text-outline",self.import_from_text),
+            (_L("Тест уведомления"),"bell-ring-outline",self._test_notification),
+            (_L("Показать debug-лог"),"text-box-search-outline",self._show_debug_log),
 
-            ("О приложении","information-outline",self._show_about)]:
+            (_L("О приложении"),"information-outline",self._show_about)]:
             di.add_widget(self._sett_row(dico,dtxt,dcb))
         data_c.add_widget(di); inn.add_widget(data_c)
         self._exp_lbl=MDLabel(text="", font_style="Caption",
@@ -19689,7 +20003,7 @@ class DailyTodoApp(MDApp):
             else:
                 row.add_widget(MDIconButton(icon=ico, size_hint_x=None, width=S(34),
                                              theme_text_color="Custom", text_color=C["accent"]))
-            name_lbl=MDLabel(text=cat, font_style="Body1", theme_text_color="Primary",
+            name_lbl=MDLabel(text=_L(cat), font_style="Body1", theme_text_color="Primary",
                              halign="left", valign="middle")
             name_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             row.add_widget(name_lbl)
@@ -19825,13 +20139,13 @@ class DailyTodoApp(MDApp):
         dots.add_widget(Widget())
         ci.add_widget(dots)
         tc=(1,1,1,1) if sel else C["text"]
-        name_lbl=MDLabel(text=tn, font_style="Caption", bold=sel,
+        name_lbl=MDLabel(text=_L(tn), font_style="Caption", bold=sel,
                           theme_text_color="Custom", text_color=tc,
                           halign="left", valign="middle",
                           size_hint_y=None, height=S(20))
         name_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         ci.add_widget(name_lbl)
-        kind="тёмная" if td.get("dark") else "светлая"
+        kind=_L("тёмная") if td.get("dark") else _L("светлая")
         tc2=(0.8,0.8,0.8,1) if sel else C["text2"]
         kind_lbl=MDLabel(text=kind, font_style="Caption",
                           theme_text_color="Custom", text_color=tc2,
@@ -20258,8 +20572,9 @@ class DailyTodoApp(MDApp):
                 c_done = sum(1 for t in tasks if t.get("done"))
                 c_undone = len(tasks) - c_done
                 self._search_result_lbl.text = (
-                    f'Найдено: {len(tasks)}  |  \u2705 {c_done}  \u23f3 {c_undone}'
-                    if tasks else "Ничего не найдено")
+                    _L("Найдено: {n}  |  \u2705 {done}  \u23f3 {undone}",
+                       n=len(tasks), done=c_done, undone=c_undone)
+                    if tasks else _L("Ничего не найдено"))
         else:
             if hasattr(self,"_search_result_lbl"):
                 self._search_result_lbl.text = ""
@@ -20290,14 +20605,14 @@ class DailyTodoApp(MDApp):
                                      size_hint_y=None, height=S(200),
                                      padding=[S(24), S(40)])
             if q:
-                msg = f'Ничего не найдено по запросу "{q}"'
-                hint = "Попробуйте другой запрос или измените фильтры"
+                msg = _L('Ничего не найдено по запросу "{q}"', q=q)
+                hint = _L("Попробуйте другой запрос или измените фильтры")
             elif not self.show_done:
-                msg = "Все задачи выполнены!"
-                hint = "Отличная работа! Добавьте новые задачи нажав +"
+                msg = _L("Все задачи выполнены!")
+                hint = _L("Отличная работа! Добавьте новые задачи нажав +")
             else:
-                msg = "Нет задач"
-                hint = "Нажмите + чтобы добавить первую задачу"
+                msg = _L("Нет задач")
+                hint = _L("Нажмите + чтобы добавить первую задачу")
             em_title = MDLabel(text=msg, font_style="H6", bold=True,
                                theme_text_color="Custom", text_color=C["text"],
                                halign="center", size_hint_y=None, height=S(60))
@@ -20319,8 +20634,9 @@ class DailyTodoApp(MDApp):
 
         total=len(tasks); done=sum(1 for t in tasks if t.get("done"))
         pct=done/total if total else 0.0
-        cat_label = "Все категории" if self.cur_cat=="Все" else self.cur_cat
-        self.stat_lbl.text=f"{cat_label}: {total} задач  {done} выполнено" \
+        cat_label = _L("Все категории") if self.cur_cat=="Все" else _L(self.cur_cat)
+        self.stat_lbl.text=_L("{cat_label}: {total} задач  {done} выполнено",
+                              cat_label=cat_label, total=total, done=done) \
             if hasattr(self,"stat_lbl") else ""
         if hasattr(self,"_pct_lbl"): self._pct_lbl.text=f"{int(pct*100)}%"
         self._prog_fill=pct
@@ -20402,7 +20718,7 @@ class DailyTodoApp(MDApp):
                                height=S(36), spacing=S(6), padding=[0,S(4)])
         _qs_cat = [self.cur_cat if self.cur_cat != "Все" else self.categories[0]]
         for cat in self.categories[:4]:
-            cb = MDRaisedButton(text=cat, elevation=0, size_hint_x=None,
+            cb = MDRaisedButton(text=_L(cat), elevation=0, size_hint_x=None,
                                  width=S(len(cat)*8+20), size_hint_y=None, height=S(28),
                                  md_bg_color=C["accent"] if cat==_qs_cat[0] else C["surf2"])
             def _sel_cat(_, c=cat, b=cb):
@@ -20486,25 +20802,21 @@ class DailyTodoApp(MDApp):
         mv.add_widget(card); mv.open()
 
     def _set_language(self, code):
-        """Меняет язык приложения. Полная перерисовка всех уже
-        построенных экранов на лету слишком рискованна (пришлось бы
-        хранить ссылки на сотни виджетов с текстом) — поэтому, как и в
-        большинстве приложений, изменение вступает в силу после
-        перезапуска. Само значение сохраняется сразу."""
+        """Меняет язык приложения — применяется СРАЗУ: пересобираем
+        весь основной интерфейс (тот же приём, что уже использовался
+        для 'Сбросить и начать заново'), вместо того чтобы просить
+        перезапустить приложение вручную."""
         if code not in ("ru","en","kk"):
             return
         global APP_LANG
         self.lang = code
         APP_LANG = code
         self._save_config()
-        self._show_restart_dialog()
-
-    def _show_restart_dialog(self):
-        dlg = MDDialog(
-            title=_L("Язык"),
-            text=_L("Язык изменится после перезапуска приложения"),
-            buttons=[MDFlatButton(text="OK", on_release=lambda *_: dlg.dismiss())])
-        dlg.open()
+        prev_tab = getattr(self, "cur_tab", "tasks")
+        self._build_main()
+        self.sm.current = "main"
+        Clock.schedule_once(lambda *_: self._nav_switch(prev_tab), 0.05)
+        self._show_toast(_L("Готово"))
 
     def _backup_restore(self, *_):
         """Резервная копия — диалог сохранения и загрузки."""
@@ -20586,7 +20898,7 @@ class DailyTodoApp(MDApp):
                             lambda *_: self._show_toast("Бэкап сохранён!"), 0)
                     except Exception as e:
                         Clock.schedule_once(
-                            lambda *_: self._show_toast(f"Ошибка сохранения: {e}"), 0)
+                            lambda *_: self._show_toast(_L("Ошибка сохранения: {e}", e=e)), 0)
                     finally:
                         _android_activity.unbind(on_activity_result=_on_result)
 
@@ -20604,11 +20916,11 @@ class DailyTodoApp(MDApp):
                     except Exception as e:
                         _android_activity.unbind(on_activity_result=_on_result)
                         Clock.schedule_once(
-                            lambda *_: self._show_toast(f"Ошибка запуска: {e}"), 0)
+                            lambda *_: self._show_toast(_L("Ошибка запуска: {e}", e=e)), 0)
 
                 _launch()
             except Exception as e:
-                self._show_toast(f"Не удалось открыть диалог сохранения: {e}")
+                self._show_toast(_L("Не удалось открыть диалог сохранения: {e}", e=e))
         else:
             # Desktop: сохраняем в домашнюю папку
             path = os.path.join(os.path.expanduser("~"), fname)
@@ -20660,7 +20972,7 @@ class DailyTodoApp(MDApp):
                         Clock.schedule_once(lambda *_: self._apply_imported_data(data), 0)
                     except Exception as e:
                         Clock.schedule_once(
-                            lambda *_: self._show_toast(f"Ошибка чтения файла: {e}"), 0)
+                            lambda *_: self._show_toast(_L("Ошибка чтения файла: {e}", e=e)), 0)
                     finally:
                         _android_activity.unbind(on_activity_result=_on_result)
 
@@ -20677,11 +20989,11 @@ class DailyTodoApp(MDApp):
                     except Exception as e:
                         _android_activity.unbind(on_activity_result=_on_result)
                         Clock.schedule_once(
-                            lambda *_: self._show_toast(f"Ошибка запуска: {e}"), 0)
+                            lambda *_: self._show_toast(_L("Ошибка запуска: {e}", e=e)), 0)
 
                 _launch()
             except Exception as e:
-                self._show_toast(f"Не удалось открыть выбор файла: {e}")
+                self._show_toast(_L("Не удалось открыть выбор файла: {e}", e=e))
         else:
             from tkinter import filedialog, Tk
             try:
@@ -20724,20 +21036,20 @@ class DailyTodoApp(MDApp):
             self.refresh_task_list()
             self._show_toast(f"Загружено {len(self.tasks)} задач!")
         except Exception as e:
-            self._show_toast(f"Ошибка импорта: {e}")
+            self._show_toast(_L("Ошибка импорта: {e}", e=e))
 
     def share_task(self, task_id):
         """Делится задачей как текстом (JSON) через системное меню — без FileProvider."""
         task = self.tasks.get(task_id)
         if not task:
-            self._show_toast("Задача не найдена")
+            self._show_toast(_L("Задача не найдена"))
             return
         payload = json.dumps({"flowdo_share": True, "task": task},
                               ensure_ascii=False)
-        share_text = (f"[FlowDo задача] {task.get('title','')}\n"
-                       f"Вставьте этот текст в Flow·Do -> Настройки -> "
-                       f"Резервная копия -> Импорт из текста, чтобы добавить задачу.\n\n"
-                       f"{payload}")
+        share_text = (_L("[FlowDo задача] {title}\n", title=task.get('title','')) +
+                       _L("Вставьте этот текст в Flow·Do -> Настройки -> "
+                          "Резервная копия -> Импорт из текста, чтобы добавить задачу.\n\n") +
+                       payload)
 
         if PLATFORM == "android":
             try:
@@ -20754,26 +21066,26 @@ class DailyTodoApp(MDApp):
                         intent = Intent(Intent.ACTION_SEND)
                         intent.setType("text/plain")
                         intent.putExtra(Intent.EXTRA_SUBJECT,
-                                        cast("java.lang.CharSequence", String("Задача из Flow\u00b7Do")))
+                                        cast("java.lang.CharSequence", String(_L("Задача из Flow\u00b7Do"))))
                         intent.putExtra(Intent.EXTRA_TEXT,
                                         cast("java.lang.CharSequence", String(share_text)))
-                        title_cs = cast("java.lang.CharSequence", String("Поделиться задачей"))
+                        title_cs = cast("java.lang.CharSequence", String(_L("Поделиться задачей")))
                         chooser = Intent.createChooser(intent, title_cs)
                         ctx.startActivity(chooser)
                     except Exception as e:
                         Clock.schedule_once(
-                            lambda *_: self._show_toast(f"Ошибка: {e}"), 0)
+                            lambda *_: self._show_toast(_L("Ошибка: {e}", e=e)), 0)
 
                 _launch()
             except Exception as e:
-                self._show_toast(f"Не удалось открыть меню \"Поделиться\": {e}")
+                self._show_toast(_L('Не удалось открыть меню "Поделиться": {e}', e=e))
         else:
             try:
                 import pyperclip
                 pyperclip.copy(share_text)
-                self._show_toast("Скопировано в буфер обмена!")
+                self._show_toast(_L("Скопировано в буфер обмена!"))
             except Exception:
-                self._show_toast("Поделиться доступно только на Android")
+                self._show_toast(_L("Поделиться доступно только на Android"))
 
     def import_from_text(self, *_):
         """Диалог ручного ввода/вставки JSON задачи для импорта."""
@@ -20810,7 +21122,7 @@ class DailyTodoApp(MDApp):
                 self._apply_imported_data(data)
                 mv.dismiss()
             except Exception as e:
-                self._show_toast(f"Не удалось разобрать текст: {e}")
+                self._show_toast(_L("Не удалось разобрать текст: {e}", e=e))
         import_btn.bind(on_release=_do_import)
         card.add_widget(import_btn)
         close_btn = MDRaisedButton(text=_L("Отмена"), elevation=0,
@@ -20847,7 +21159,7 @@ class DailyTodoApp(MDApp):
                     data = json.load(f)
             self._apply_imported_data(data)
         except Exception as e:
-            self._show_toast(f"Ошибка открытия файла: {e}")
+            self._show_toast(_L("Ошибка открытия файла: {e}", e=e))
 
     def _show_about(self, *_):
         from kivy.uix.modalview import ModalView
