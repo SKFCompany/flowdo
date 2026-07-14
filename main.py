@@ -390,6 +390,33 @@ TRANSLATIONS = {
         "Ошибка импорта: {e}": "Import error: {e}",
         "Не удалось разобрать текст: {e}": "Could not parse the text: {e}",
         "Ошибка открытия файла: {e}": "File open error: {e}",
+        "Теги (необязательно)": "Tags (optional)",
+        " (сегодня)": " (today)",
+        "Поставь цель на сегодня \U0001f496": "Set a goal for today \U0001f496",
+        "до конца дня": "by end of day",
+        "Всё выполнено! \U0001f389": "All done! \U0001f389",
+        "Добавь первую задачу": "Add your first task",
+        "Выполнено {done} дел \U0001f49e": "{done} done \U0001f49e",
+        "Все даты": "All dates",
+        "Скрыть вып.": "Hide done",
+        "Перенести": "Move",
+        "Детали": "Details",
+        "Версия: {v}": "Version: {v}",
+        "Менеджер задач с голосовым помощником": "Task manager with a voice assistant",
+        "Платформа: {p}": "Platform: {p}",
+        "Задач: {n}": "Tasks: {n}",
+        "Категорий: {n}": "Categories: {n}",
+        "Неделя": "Week",
+        "Всё": "All",
+        "Серия": "Streak",
+        "Всего задач": "Total tasks",
+        "Выполнить {n}% задач": "Complete {n}% of tasks",
+        "Сохранение отменено": "Save cancelled",
+        "Бэкап сохранён!": "Backup saved!",
+        "Сохранено: {path}": "Saved: {path}",
+        "Загружено {n} задач!": "Loaded {n} tasks!",
+        "Лог очищен": "Log cleared",
+        "Задача добавлена: {title}": "Task added: {title}",
     },
     "kk": {
         "  Добавить задачу": "  Тапсырма қосу",
@@ -628,6 +655,33 @@ TRANSLATIONS = {
         "Ошибка импорта: {e}": "Импорттау қатесі: {e}",
         "Не удалось разобрать текст: {e}": "Мәтінді талдау мүмкін болмады: {e}",
         "Ошибка открытия файла: {e}": "Файлды ашу қатесі: {e}",
+        "Теги (необязательно)": "Тегтер (міндетті емес)",
+        " (сегодня)": " (бүгін)",
+        "Поставь цель на сегодня \U0001f496": "Бүгінге мақсат қой \U0001f496",
+        "до конца дня": "күн соңына дейін",
+        "Всё выполнено! \U0001f389": "Бәрі орындалды! \U0001f389",
+        "Добавь первую задачу": "Алғашқы тапсырманы қос",
+        "Выполнено {done} дел \U0001f49e": "{done} орындалды \U0001f49e",
+        "Все даты": "Барлық күндер",
+        "Скрыть вып.": "Орындалғанды жасыру",
+        "Перенести": "Ауыстыру",
+        "Детали": "Толығырақ",
+        "Версия: {v}": "Нұсқа: {v}",
+        "Менеджер задач с голосовым помощником": "Дауыстық көмекшісі бар тапсырма менеджері",
+        "Платформа: {p}": "Платформа: {p}",
+        "Задач: {n}": "Тапсырмалар: {n}",
+        "Категорий: {n}": "Санаттар: {n}",
+        "Неделя": "Апта",
+        "Всё": "Барлығы",
+        "Серия": "Серия",
+        "Всего задач": "Барлық тапсырмалар",
+        "Выполнить {n}% задач": "Тапсырмалардың {n}%-ын орында",
+        "Сохранение отменено": "Сақтау болдырылмады",
+        "Бэкап сохранён!": "Сақтық көшірме сақталды!",
+        "Сохранено: {path}": "Сақталды: {path}",
+        "Загружено {n} задач!": "{n} тапсырма жүктелді!",
+        "Лог очищен": "Лог тазаланды",
+        "Задача добавлена: {title}": "Тапсырма қосылды: {title}",
     },
 }
 
@@ -16340,15 +16394,15 @@ class TaskCard(MDCard):
         card=MDCard(orientation="vertical", size_hint=(1,1),
                     radius=[S(12)], elevation=4, md_bg_color=C["surf"], padding=[S(4)])
         for ico,txt,col,cb in [
-            ("eye-outline","Детали",C["text"],
+            ("eye-outline",_L("Детали"),C["text"],
              lambda: self.app.open_task_detail(self.task_id)),
-            ("pencil-outline","Редактировать",C["accent"],
+            ("pencil-outline",_L("Редактировать"),C["accent"],
              lambda: self.app.open_task_form(self.task_id)),
             ("clock-play",_L("Фокус"),C["accent"],
              lambda: self._start_pomodoro_for_task()),
             ("share-variant",_L("Поделиться"),C["accent"],
              lambda: self.app.share_task(self.task_id)),
-            ("trash-can-outline","Удалить",C["red"],self._delete)]:
+            ("trash-can-outline",_L("Удалить"),C["red"],self._delete)]:
             row=MDBoxLayout(orientation="horizontal", spacing=S(6),
                             size_hint_y=None, height=IH)
             row.add_widget(MDIconButton(icon=ico, size_hint_x=None, width=S(34),
@@ -16891,7 +16945,7 @@ class TaskFormScreen(MDScreen):
         root.add_widget(footer); self.add_widget(root)
 
     def _lbl(self, text):
-        lbl = MDLabel(text=text, font_style="Caption",
+        lbl = MDLabel(text=_L(text), font_style="Caption",
                       theme_text_color="Custom", text_color=C["text2"],
                        size_hint_y=None, height=S(24),
                       halign="left", valign="middle")
@@ -16909,7 +16963,7 @@ class TaskFormScreen(MDScreen):
                                     size_hint_y=None, height=S(30),
                                     theme_text_color="Custom",
                                     text_color=C["accent"] if selected else C["text2"]))
-        cat_lbl=MDLabel(text=name, font_style="Caption",
+        cat_lbl=MDLabel(text=_L(name), font_style="Caption",
                          theme_text_color="Custom", text_color=tc,
                          halign="center", valign="middle",
                          size_hint_y=None, height=S(22))
@@ -17232,7 +17286,7 @@ class TaskDetailScreen(MDScreen):
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
         cat=td.get("category","")
         if cat:
-            _cat_lbl = EmojiLabel(text=f"  {CAT_EMOJI.get(cat,'')} {cat}",
+            _cat_lbl = EmojiLabel(text=f"  {CAT_EMOJI.get(cat,'')} {_L(cat)}",
                                    font_style="Caption",
                                    theme_text_color="Custom", text_color=C["accent"],
                                    size_hint_y=None, height=S(22))
@@ -17244,8 +17298,8 @@ class TaskDetailScreen(MDScreen):
         pi=MDBoxLayout(orientation="vertical", adaptive_height=True)
         today_s=date.today().strftime("%d.%m.%Y")
         d_str=td.get("date","")
-        d_disp=d_str+(" (сегодня)" if d_str==today_s else "")
-        t_str=td.get("time","") or "В течение дня"
+        d_disp=d_str+(_L(" (сегодня)") if d_str==today_s else "")
+        t_str=td.get("time","") or _L("В течение дня")
         self._det_row(pi,"calendar-outline",d_disp,t_str); self._sep(pi)
         self._det_row(pi,"bell-outline","Напоминание",td.get("reminder","") or "Не выбрано")
         self._sep(pi)
@@ -17262,7 +17316,7 @@ class TaskDetailScreen(MDScreen):
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
         pb=MDCard(size_hint=(None,None), size=(S(80),S(26)), radius=[S(13)], elevation=0,
                   md_bg_color=(*pcol[:3],0.15))
-        _lbl_tmp=MDLabel(text=prio, font_style="Caption", halign="center",
+        _lbl_tmp=MDLabel(text=_L(prio), font_style="Caption", halign="center",
                                valign="middle", theme_text_color="Custom", text_color=pcol)
         pb.add_widget(_lbl_tmp)
         _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
@@ -17352,13 +17406,13 @@ class TaskDetailScreen(MDScreen):
                         height=S(52), spacing=S(8), padding=[S(8),0])
         row.add_widget(MDIconButton(icon=icon, size_hint_x=None, width=S(34),
                                     theme_text_color="Custom", text_color=C["text2"]))
-        lbl=MDLabel(text=label, font_style="Body1", theme_text_color="Primary",
+        lbl=MDLabel(text=_L(label), font_style="Body1", theme_text_color="Primary",
                     halign="left", valign="middle",
                     size_hint_x=None, width=S(110),
                     shorten=True, shorten_from="right")
         lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         row.add_widget(lbl)
-        val=MDLabel(text=value, font_style="Body2",
+        val=MDLabel(text=_L(value), font_style="Body2",
                     theme_text_color="Secondary",
                     halign="right", valign="middle",
                     shorten=True, shorten_from="right")
@@ -17807,7 +17861,7 @@ class DailyTodoApp(MDApp):
             except Exception:
                 pass
             mv.dismiss()
-            self._show_toast("Лог очищен")
+            self._show_toast(_L("Лог очищен"))
         clear_btn = MDRaisedButton(text=_L("Очистить"), md_bg_color=C["surf2"],
                                     elevation=0, size_hint_x=1)
         clear_btn.bind(on_release=_clear_log)
@@ -18965,9 +19019,9 @@ class DailyTodoApp(MDApp):
                 if card.collide_point(*t.pos): cb(); return True
             card.bind(on_touch_up=_tap)
             return card
-        self.f_date  = _mk_flt("Все даты",    self._tog_date)
-        self.f_done  = _mk_flt("Скрыть вып.", self._tog_done)
-        self.f_carry = _mk_flt("Перенести",   self._carry)
+        self.f_date  = _mk_flt(_L("Все даты"),    self._tog_date)
+        self.f_done  = _mk_flt(_L("Скрыть вып."), self._tog_done)
+        self.f_carry = _mk_flt(_L("Перенести"),   self._carry)
         for b in (self.f_date, self.f_done, self.f_carry):
             flt_r.add_widget(b)
         flt_sv.add_widget(flt_r); inn.add_widget(flt_sv)
@@ -19088,7 +19142,7 @@ class DailyTodoApp(MDApp):
         def _tog_view(w,t):
             if view_toggle.collide_point(*t.pos):
                 self._cal_view_mode = "day" if self._cal_view_mode=="month" else "month"
-                self._cal_view_lbl.text = _L("День") if self._cal_view_mode=="day" else "Месяц"
+                self._cal_view_lbl.text = _L("День") if self._cal_view_mode=="day" else _L("Месяц")
                 Clock.schedule_once(lambda *_: self._refresh_cal(), 0.05)
                 return True
         view_toggle.bind(on_touch_up=_tog_view)
@@ -19139,7 +19193,7 @@ class DailyTodoApp(MDApp):
         ds=self._cal_sel.strftime("%d.%m.%Y")
         DAYS=_days_full()
         MONTHS=_months_genitive()
-        today=date.today(); sfx=" (сегодня)" if self._cal_sel==today else ""
+        today=date.today(); sfx=_L(" (сегодня)") if self._cal_sel==today else ""
         self._cal_day_lbl.text=(f"{DAYS[self._cal_sel.weekday()]}, "
                                  f"{self._cal_sel.day} {MONTHS[self._cal_sel.month-1]}{sfx}")
 
@@ -19266,7 +19320,7 @@ class DailyTodoApp(MDApp):
         self._stat_period="week"; self._sp_btns={}
         pr=MDBoxLayout(orientation="horizontal", spacing=S(4),
                        size_hint_y=None, height=S(30))
-        for txt,val in [("Неделя","week"),("Месяц","month"),("Всё","all")]:
+        for txt,val in [(_L("Неделя"),"week"),(_L("Месяц"),"month"),(_L("Всё"),"all")]:
             sel=(val=="week")
             btn=MDCard(size_hint_y=None, height=S(28), size_hint_x=None, width=S(70),
                        radius=[S(14)], elevation=0,
@@ -19418,7 +19472,7 @@ class DailyTodoApp(MDApp):
             ico_row.add_widget(ico)
             ico_row.add_widget(Widget())
             box.add_widget(ico_row)
-            t_l=MDLabel(text=title, font_style="Caption",
+            t_l=MDLabel(text=_L(title), font_style="Caption",
                         theme_text_color="Secondary", size_hint_y=None, height=S(18),
                         halign="left", valign="middle")
             t_l.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
@@ -19463,7 +19517,7 @@ class DailyTodoApp(MDApp):
         plus_b.bind(on_release=lambda *_: _chg_goal(5))
         gh.add_widget(minus_b); gh.add_widget(plus_b)
         gc_box.add_widget(gh)
-        sub_lbl=MDLabel(text=f"Выполнить {self.weekly_goal}% задач", font_style="Caption",
+        sub_lbl=MDLabel(text=_L("Выполнить {n}% задач", n=self.weekly_goal), font_style="Caption",
                         theme_text_color="Secondary", size_hint_y=None, height=S(16))
         gc_box.add_widget(sub_lbl)
         self._goal_prog=Widget(size_hint_y=None, height=S(10))
@@ -20438,13 +20492,13 @@ class DailyTodoApp(MDApp):
     # ── Фильтры ─────────────────────────────────────────────────────────────
     def _tog_date(self,*_):
         self.filter_date=not self.filter_date
-        self.f_date.text=self.sel_date if self.filter_date else "Все даты"
+        self.f_date.text=self.sel_date if self.filter_date else _L("Все даты")
         self.f_date.md_bg_color=(*C["accent"][:3], 0.15) if self.filter_date else C["surf2"]
         self.refresh_task_list()
 
     def _tog_done(self,*_):
         self.show_done=not self.show_done
-        self.f_done.text=_L("Показать вып.") if not self.show_done else "Скрыть вып."
+        self.f_done.text=_L("Показать вып.") if not self.show_done else _L("Скрыть вып.")
         self.f_done.md_bg_color=(*C["accent"][:3], 0.15) if not self.show_done else C["surf2"]
         self.refresh_task_list()
 
@@ -20653,13 +20707,13 @@ class DailyTodoApp(MDApp):
                 self._day_task_lbl = update_emoji_label(self._day_task_lbl, pick[0]["title"][:42])
                 tv=pick[0].get("time","")
                 sub_txt=(tv if tv else
-                    ("Поставь цель на сегодня \U0001f496" if is_fem else "до конца дня"))
+                    (_L("Поставь цель на сегодня \U0001f496") if is_fem else _L("до конца дня")))
                 self._day_task_sub = update_emoji_label(self._day_task_sub, sub_txt)
             else:
-                done_txt=("Всё выполнено! \U0001f389" if done else
-                    ("Добавь первую задачу" if is_fem else "Список пуст"))
+                done_txt=(_L("Всё выполнено! \U0001f389") if done else
+                    (_L("Добавь первую задачу") if is_fem else _L("Список пуст")))
                 self._day_task_lbl = update_emoji_label(self._day_task_lbl, done_txt)
-                sub2=f"Выполнено {done} дел \U0001f49e" if (done and is_fem) else ""
+                sub2=_L("Выполнено {done} дел \U0001f49e", done=done) if (done and is_fem) else ""
                 self._day_task_sub = update_emoji_label(self._day_task_sub, sub2)
         if self.cur_tab=="calendar":
             Clock.schedule_once(lambda *_: self._refresh_cal(), 0.05)
@@ -20881,7 +20935,7 @@ class DailyTodoApp(MDApp):
                     RESULT_OK = -1
                     if result_code != RESULT_OK or intent_data is None:
                         Clock.schedule_once(
-                            lambda *_: self._show_toast("Сохранение отменено"), 0)
+                            lambda *_: self._show_toast(_L("Сохранение отменено")), 0)
                         _android_activity.unbind(on_activity_result=_on_result)
                         return
                     uri = intent_data.getData()
@@ -20895,7 +20949,7 @@ class DailyTodoApp(MDApp):
                         writer.flush()
                         writer.close()
                         Clock.schedule_once(
-                            lambda *_: self._show_toast("Бэкап сохранён!"), 0)
+                            lambda *_: self._show_toast(_L("Бэкап сохранён!")), 0)
                     except Exception as e:
                         Clock.schedule_once(
                             lambda *_: self._show_toast(_L("Ошибка сохранения: {e}", e=e)), 0)
@@ -20927,10 +20981,10 @@ class DailyTodoApp(MDApp):
             try:
                 with open(path, "w", encoding="utf-8") as f:
                     f.write(text)
-                self._show_toast(f"Сохранено: {path}")
+                self._show_toast(_L("Сохранено: {path}", path=path))
                 return path
             except Exception as e:
-                self._show_toast(f"Ошибка: {e}")
+                self._show_toast(_L("Ошибка: {e}", e=e))
                 return None
 
     def _pick_import_file(self):
@@ -21005,7 +21059,7 @@ class DailyTodoApp(MDApp):
                         data = json.load(f)
                     self._apply_imported_data(data)
             except Exception as e:
-                self._show_toast(f"Ошибка: {e}")
+                self._show_toast(_L("Ошибка: {e}", e=e))
 
     def _apply_imported_data(self, data):
         """Применяет данные из импортированного JSON (полный бэкап или одна задача)."""
@@ -21018,7 +21072,7 @@ class DailyTodoApp(MDApp):
                 self.tasks[t["id"]] = t
                 self.save_tasks()
                 self.refresh_task_list()
-                self._show_toast(f"Задача добавлена: {t.get('title','')[:30]}")
+                self._show_toast(_L("Задача добавлена: {title}", title=t.get('title','')[:30]))
                 return
             # Полный бэкап
             if "tasks" in data:
@@ -21034,7 +21088,7 @@ class DailyTodoApp(MDApp):
                 self.user_name = data["profile"].get("name", self.user_name)
             self._save_config()
             self.refresh_task_list()
-            self._show_toast(f"Загружено {len(self.tasks)} задач!")
+            self._show_toast(_L("Загружено {n} задач!", n=len(self.tasks)))
         except Exception as e:
             self._show_toast(_L("Ошибка импорта: {e}", e=e))
 
@@ -21174,10 +21228,10 @@ class DailyTodoApp(MDApp):
                         halign="center", size_hint_y=None, height=S(40))
         title.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
         card.add_widget(title)
-        for line in ["Версия: 4.0", "Менеджер задач с голосовым помощником",
-                     "Платформа: " + PLATFORM.title(),
-                     "Задач: " + str(len(self.tasks)),
-                     "Категорий: " + str(len(self.categories))]:
+        for line in [_L("Версия: {v}", v="4.0"), _L("Менеджер задач с голосовым помощником"),
+                     _L("Платформа: {p}", p=PLATFORM.title()),
+                     _L("Задач: {n}", n=len(self.tasks)),
+                     _L("Категорий: {n}", n=len(self.categories))]:
             lbl = MDLabel(text=line, font_style="Body2",
                           theme_text_color="Primary",
                           halign="center", size_hint_y=None, height=S(28))
