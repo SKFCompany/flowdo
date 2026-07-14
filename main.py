@@ -18273,18 +18273,28 @@ class DailyTodoApp(MDApp):
     def _log_debug(self, msg):
         """Пишет диагностическое сообщение в файл app_debug.log в приватном
         хранилище приложения — используется для отладки уведомлений на
-        устройстве, где недоступен logcat."""
+        устройстве, где недоступен logcat.
+
+        ВАЖНО: путь к файлу кэшируется после первого вызова. Раньше
+        app_storage_path() (переход через JNI на Java) вызывался заново
+        на КАЖДЫЙ вызов _log_debug — а этот метод вызывается очень часто
+        (в том числе из фоновой проверки напоминаний каждые 30 секунд).
+        Повторные JNI-переходы + открытие/закрытие файла на каждый вызов
+        и были главной причиной периодических подтормаживаний в приложении."""
         try:
             from datetime import datetime as _dt
-            if PLATFORM == "android":
-                try:
-                    from android.storage import app_storage_path
-                    base = app_storage_path()
-                except Exception:
+            path = getattr(self, "_log_path_cache", None)
+            if path is None:
+                if PLATFORM == "android":
+                    try:
+                        from android.storage import app_storage_path
+                        base = app_storage_path()
+                    except Exception:
+                        base = "."
+                else:
                     base = "."
-            else:
-                base = "."
-            path = os.path.join(base, "app_debug.log")
+                path = os.path.join(base, "app_debug.log")
+                self._log_path_cache = path
             with open(path, "a", encoding="utf-8") as f:
                 f.write(f"{_dt.now()}: {msg}\n")
         except Exception:
@@ -18292,11 +18302,22 @@ class DailyTodoApp(MDApp):
 
     def _check_reminders(self, *_):
         """Проверяет все задачи раз в 30 секунд: если наступило время самой
-        задачи или время напоминания — отправляет push-уведомление."""
+        задачи или время напоминания — отправляет push-уведомление.
+
+        ВАЖНО: раньше здесь на КАЖДЫЙ тик (каждые 30 секунд) для КАЖДОЙ
+        задачи писалось по 2-3 строки в debug-лог (диагностика, которая
+        была нужна только пока чинили push-уведомления). Так как
+        _log_debug() раньше ещё и заново запрашивал app_storage_path()
+        через JNI на каждую запись, при десятках задач это превращалось
+        в десятки лишних файловых операций и JNI-переходов каждые 30
+        секунд на главном потоке — и именно это вызывало периодические
+        подтормаживания интерфейса (в том числе при переключении вкладок,
+        если тик Clock срабатывал в этот момент). Теперь логируются
+        только реально значимые события: срабатывание уведомления или
+        ошибка в данных задачи."""
         from datetime import datetime as _dt, timedelta as _td
         now = _dt.now()
         changed = False
-        self._log_debug(f"_check_reminders tick, tasks={len(self.tasks)}, now={now}")
         for t in self.tasks.values():
             if t.get("done"):
                 continue
@@ -18307,22 +18328,19 @@ class DailyTodoApp(MDApp):
             try:
                 task_dt = _dt.strptime(f"{date_s} {time_s}", "%d.%m.%Y %H:%M")
             except Exception as e:
-                self._log_debug(f"  task '{t.get('title','')}': bad date/time '{date_s} {time_s}': {e}")
+                self._log_debug(f"_check_reminders: task '{t.get('title','')}' bad date/time '{date_s} {time_s}': {e}")
                 continue
 
             tid = t.get("id","")
             title = t.get("title","Задача")
             remind_s = t.get("reminder","")
-            self._log_debug(
-                f"  task '{title}': task_dt={task_dt}, reminder='{remind_s}', "
-                f"diff_to_task={(task_dt-now)}")
 
             # 1) Уведомление в момент самого времени задачи
             key_time = f"{tid}:time:{date_s}_{time_s}"
             if key_time not in self._notified_keys:
                 # окно срабатывания: 5 минут после момента (с запасом на случай редких тиков Clock в фоне)
                 if task_dt <= now <= task_dt + _td(minutes=60):
-                    self._log_debug(f"  -> firing TIME notification for '{title}'")
+                    self._log_debug(f"_check_reminders: firing TIME notification for '{title}'")
                     self._send_notification(_L("Время задачи: {title}", title=title), _L("Flow·Do — Задача"))
                     self._notified_keys.add(key_time)
                     changed = True
@@ -18332,21 +18350,14 @@ class DailyTodoApp(MDApp):
             if offset:
                 remind_dt = task_dt - _td(minutes=offset)
                 key_remind = f"{tid}:remind:{date_s}_{time_s}_{remind_s}"
-                self._log_debug(
-                    f"  task '{title}': remind_dt={remind_dt}, "
-                    f"diff_to_remind={(remind_dt-now)}, "
-                    f"key_in_notified={key_remind in self._notified_keys}")
                 if key_remind not in self._notified_keys:
                     if remind_dt <= now <= remind_dt + _td(minutes=60):
-                        self._log_debug(f"  -> firing REMINDER notification for '{title}'")
+                        self._log_debug(f"_check_reminders: firing REMINDER notification for '{title}'")
                         self._send_notification(
                             _L("Напоминание: {title} ({remind})", title=title, remind=_L(remind_s).lower()),
                             _L("Flow·Do — Напоминание"))
                         self._notified_keys.add(key_remind)
                         changed = True
-            elif remind_s and remind_s != "Не выбрано":
-                self._log_debug(f"  task '{title}': unknown reminder value '{remind_s}' "
-                                f"(not in _REMIND_OFFSETS={list(self._REMIND_OFFSETS.keys())})")
 
         if changed:
             # сохраняем, чтобы не дублировать уведомления после перезапуска
