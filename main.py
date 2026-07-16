@@ -417,6 +417,8 @@ TRANSLATIONS = {
         "Загружено {n} задач!": "Loaded {n} tasks!",
         "Лог очищен": "Log cleared",
         "Задача добавлена: {title}": "Task added: {title}",
+        "Применяю тему...": "Applying theme...",
+        "Применяю язык...": "Applying language...",
     },
     "kk": {
         "  Добавить задачу": "  Тапсырма қосу",
@@ -682,6 +684,8 @@ TRANSLATIONS = {
         "Загружено {n} задач!": "{n} тапсырма жүктелді!",
         "Лог очищен": "Лог тазаланды",
         "Задача добавлена: {title}": "Тапсырма қосылды: {title}",
+        "Применяю тему...": "Тақырып қолданылуда...",
+        "Применяю язык...": "Тіл қолданылуда...",
     },
 }
 
@@ -16056,6 +16060,16 @@ class CalendarWidget(MDBoxLayout):
         self._draw()
 
     def refresh_dates(self, task_dates):
+        # ВАЖНО: раньше _draw() (полная пересборка сетки месяца — очистка
+        # и создание заново ~30-40 виджетов дней с привязками) вызывалась
+        # БЕЗУСЛОВНО при каждом открытии вкладки "Календарь", даже если
+        # список дат с задачами не изменился с прошлого раза. На слабом
+        # устройстве создание десятков виджетов Kivy заново — заметная по
+        # времени операция, и именно она давала ощущение "вкладка каждый
+        # раз перезагружается". Теперь перерисовываем сетку только если
+        # набор дат реально изменился.
+        if task_dates == self.task_dates:
+            return
         self.task_dates=task_dates; self._draw()
 
 
@@ -18609,6 +18623,15 @@ class DailyTodoApp(MDApp):
         # Профиль только что создан — теперь можно безопасно запустить
         # фоновую службу уведомлений (на welcome-экране мы её не запускали)
         Clock.schedule_once(self._start_notification_service, 2)
+        # ВАЖНО: раньше запрос на отключение оптимизации батареи был
+        # только в build() внутри "if self.user_name:" — а на самом первом
+        # запуске (когда показывается этот экран) user_name ещё пуст, и
+        # тот блок просто пропускался. Из-за этого диалог появлялся только
+        # при ВТОРОМ запуске приложения. Дублируем запрос здесь же, сразу
+        # после того как профиль создан — чтобы он появился сразу.
+        if not self.cfg_store.exists("battery_opt_asked"):
+            Clock.schedule_once(self._request_ignore_battery_opt, 4)
+            self.cfg_store.put("battery_opt_asked", value=True)
 
     # ── Главный экран ────────────────────────────────────────────────────────
     def _build_main(self):
@@ -20053,9 +20076,21 @@ class DailyTodoApp(MDApp):
 
     def _rebuild_cats_list(self):
         if not hasattr(self,"_cats_box"): return
+        # Как и с календарём — пропускаем полную пересборку строк списка
+        # категорий (с созданием виджетов и чтением emoji-картинок с
+        # диска), если состав категорий и счётчики задач не изменились
+        # с прошлого раза, когда открывалась эта вкладка.
+        counts = {}
+        for t in self.tasks.values():
+            c = t.get("category")
+            if c: counts[c] = counts.get(c,0) + 1
+        sig = tuple((cat, counts.get(cat,0)) for cat in self.categories)
+        if getattr(self, "_cats_sig_cache", None) == sig:
+            return
+        self._cats_sig_cache = sig
         self._cats_box.clear_widgets()
         for cat in self.categories:
-            cnt=sum(1 for t in self.tasks.values() if t.get("category")==cat)
+            cnt=counts.get(cat,0)
             em=CAT_EMOJI.get(cat,"")
             ico=CAT_ICONS.get(cat,"dots-horizontal-circle-outline")
             row=MDBoxLayout(orientation="horizontal", size_hint_y=None,
@@ -20229,6 +20264,12 @@ class DailyTodoApp(MDApp):
     def _apply_theme(self, tn):
         td=THEMES.get(tn)
         if not td: return
+        # Смена темы требует пересобрать весь интерфейс (десятки экранов
+        # и виджетов используют цвет темы напрямую, без общей привязки) —
+        # это заметно тяжелее обычного нажатия. Показываем мгновенный
+        # отклик, чтобы не казалось, что приложение зависло, пока идёт
+        # пересборка.
+        self._show_toast(_L("Применяю тему..."))
         C.update(td); self.theme_name=tn
         self._apply_md_style(); self._save_config()
         Clock.schedule_once(self._rebuild, 0.1)
@@ -20877,6 +20918,7 @@ class DailyTodoApp(MDApp):
         self.lang = code
         APP_LANG = code
         self._save_config()
+        self._show_toast(_L("Применяю язык..."))
         prev_tab = getattr(self, "cur_tab", "tasks")
         self._build_main()
         self.sm.current = "main"
