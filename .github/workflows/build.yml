@@ -1,84 +1,76 @@
-name: Build APK
-on: [push]
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+name: Build Android APK
+
+# Когда запускается сборка:
+# 1. Автоматически при пуше в main/master (если поменялся код приложения
+#    или сам buildozer.spec — не пересобираем зря на правки README и т.п.)
+# 2. Вручную из вкладки Actions на GitHub кнопкой "Run workflow"
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - "**.py"
+      - "buildozer.spec"
+      - "requirements.txt"
+      - "assets/**"
+      - ".github/workflows/build-android.yml"
+  workflow_dispatch: {}
+
 jobs:
   build:
+    # Фиксируем конкретную LTS-версию Ubuntu (не "ubuntu-latest") — иначе
+    # рано или поздно GitHub переключит "latest" на новый релиз с другими
+    # версиями системных пакетов, и сборка отвалится без единой правки в
+    # самом проекте (именно это и случилось со сторонним Docker-экшеном:
+    # он пытался подключить PPA для Ubuntu-релиза, которого тот PPA ещё не
+    # поддерживает).
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
+      - name: Скачать код репозитория
         uses: actions/checkout@v4
-      - name: Set up Python
+
+      - name: Установить Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Install system dependencies
+          python-version: "3.11"
+
+      # Системные зависимости buildozer/python-for-android по официальной
+      # документации: https://buildozer.readthedocs.io/en/latest/installation.html
+      # openjdk-17-jdk здесь ставится из штатного репозитория Ubuntu 22.04,
+      # без сторонних PPA — то, что как раз ломалось в Docker-образе экшена.
+      - name: Установить системные зависимости
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            python3-pip git zip unzip \
-            libffi-dev libssl-dev autoconf libtool \
-            libltdl-dev zlib1g-dev wget \
+            git zip unzip openjdk-17-jdk-headless \
+            autoconf libtool pkg-config zlib1g-dev \
+            libncurses-dev cmake libffi-dev libssl-dev \
             build-essential ccache
-          # ВАЖНО: версия buildozer >= 1.5.0 правильно передаёт
-          # --ndk-api из buildozer.spec в команду 'create' (раньше
-          # был хардкод --ndk-api=21 для create, что конфликтовало
-          # с --minsdk/--ndk-api=23 в команде 'apk')
-          pip install --upgrade "buildozer>=1.5.0" "python-for-android>=2024.1.21" cython==3.0.11
-      - name: Accept Android SDK licenses
+
+      - name: Установить buildozer и Cython
         run: |
-          # Создаём симлинк который ищет buildozer
-          sudo mkdir -p /usr/local/lib/android/sdk/tools/bin
-          sudo ln -sf /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
-            /usr/local/lib/android/sdk/tools/bin/sdkmanager
-          sudo ln -sf /usr/local/lib/android/sdk/cmdline-tools/latest/bin/avdmanager \
-            /usr/local/lib/android/sdk/tools/bin/avdmanager
-          # Принимаем лицензии
-          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
-            --licenses > /dev/null 2>&1 || true
-          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager \
-            "platform-tools" \
-            "platforms;android-33" \
-            "build-tools;34.0.0"
-      - name: Configure buildozer to use system SDK/NDK
+          pip install --upgrade pip
+          pip install buildozer cython==0.29.33
+
+      # buildozer при первой сборке скачивает и компилирует Android SDK/NDK
+      # и все Python-зависимости под Android — это может занимать 30-60+
+      # минут. Кэш ускоряет все последующие сборки до нескольких минут.
+      - name: Кэш buildozer (Android SDK/NDK, python-for-android)
+        uses: actions/cache@v4
+        with:
+          path: |
+            .buildozer
+            ~/.buildozer
+          key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-${{ runner.os }}-
+
+      - name: Собрать APK (buildozer android debug)
         run: |
-          # Создаём симлинки чтобы buildozer нашёл SDK/NDK
-          mkdir -p ~/.buildozer/android/platform
-          ln -sf $ANDROID_HOME \
-            ~/.buildozer/android/platform/android-sdk
-          ln -sf $ANDROID_NDK_HOME \
-            ~/.buildozer/android/platform/android-ndk-r25b
-          # Принимаем лицензии
-          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
-          echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > \
-            ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" >> \
-            ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "8933bad161af4178b1185d1a37fbf41ea5269c55" >> \
-            ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-      - name: Build APK
-        env:
-          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-        run: |
-          export JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))
-          export PATH=$JAVA_HOME/bin:$PATH
-          buildozer android debug 2>&1 | tee build.log || true
-      - name: Show last 100 lines of log
-        if: always()
-        run: tail -200 build.log | grep -A5 -B5 -i "error\|exception\|failed\|traceback" || tail -200 build.log
-      - name: Upload full log
-        if: always()
+          yes | buildozer android debug
+
+      - name: Загрузить APK как артефакт сборки
         uses: actions/upload-artifact@v4
         with:
-          name: build-log
-          path: build.log
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: flowdo-debug
+          name: moemenu-debug-apk
           path: bin/*.apk
+          if-no-files-found: error
