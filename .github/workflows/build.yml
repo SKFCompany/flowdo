@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build APK
 
 # Когда запускается сборка:
 # 1. Автоматически при пуше в main/master (если поменялся код приложения
