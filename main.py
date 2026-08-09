@@ -17865,6 +17865,7 @@ class DailyTodoApp(MDApp):
         self.theme_name  = "Роза"
         self._save_ev    = None
         self._ref_ev     = None
+        self._refresh_batch_ev = None
         self._ring_pct   = 0.0
         self.weekly_goal = 80       # цель на неделю %
         self.mood_history = {}      # {"DD.MM.YYYY": 1-5}
@@ -20871,21 +20872,56 @@ class DailyTodoApp(MDApp):
         tasks.sort(key=lambda t:(t.get("done",False),
                                   PRIO.get(t.get("priority","Средний"),1),
                                   t.get("date","")))
-        for t in tasks:
-            card = TaskCard(
-                task_id=t["id"],title=t["title"],task_date=t["date"],
-                comment=t.get("comment",""),done=t.get("done",False),
-                priority=t.get("priority","Средний"),
-                category=t.get("category",""),
-                original_date=t.get("original_date",t["date"]),
-                subtasks=t.get("subtasks",[]),
-                time_str=t.get("time",""))
-            # Запоминаем исходную x позицию для свайпа
-            def _init_x(w, pos):
-                if not hasattr(w, "x_orig"):
-                    w.x_orig = pos[0]
-            card.bind(pos=_init_x)
-            self.task_list.add_widget(card)
+
+        # ── Отрисовка карточек ПОРЦИЯМИ, а не одним синхронным циклом ───────
+        # РАНЬШЕ все карточки TaskCard создавались в одном for-цикле подряд.
+        # С фильтром "Все даты" и реально большим числом задач это была
+        # самая тяжёлая часть обновления списка — главный поток блокировался
+        # на секунды, и если в этот момент шла анимация перехода между
+        # экранами (например, после сохранения новой задачи), она замирала
+        # ПОСЕРЕДИНЕ — ровно та "разрезанная" картинка с двумя экранами
+        # одновременно, что видно на скриншоте. Теперь карточки создаются
+        # порциями по BATCH штук за кадр — список наполняется чуть заметно
+        # постепенно, но интерфейс не замирает ни на секунду.
+        if hasattr(self,"_refresh_batch_ev") and self._refresh_batch_ev:
+            self._refresh_batch_ev.cancel()
+            self._refresh_batch_ev = None
+
+        BATCH = 12
+        _idx = {"i": 0}
+
+        def _build_batch(*_):
+            chunk = tasks[_idx["i"]: _idx["i"]+BATCH]
+            for t in chunk:
+                card = TaskCard(
+                    task_id=t["id"],title=t["title"],task_date=t["date"],
+                    comment=t.get("comment",""),done=t.get("done",False),
+                    priority=t.get("priority","Средний"),
+                    category=t.get("category",""),
+                    original_date=t.get("original_date",t["date"]),
+                    subtasks=t.get("subtasks",[]),
+                    time_str=t.get("time",""))
+                def _init_x(w, pos):
+                    if not hasattr(w, "x_orig"):
+                        w.x_orig = pos[0]
+                card.bind(pos=_init_x)
+                self.task_list.add_widget(card)
+            _idx["i"] += BATCH
+            if _idx["i"] >= len(tasks):
+                self._refresh_batch_ev = None
+                self._finish_refresh(tasks)
+                return False  # остановить schedule_interval
+
+        if tasks:
+            self._refresh_batch_ev = Clock.schedule_interval(_build_batch, 0)
+        else:
+            self._finish_refresh(tasks)
+
+    def _finish_refresh(self, tasks):
+        """Вторая половина обновления списка задач — статистика, пустой
+        экран, карточка "задача дня", обновление календаря. Выполняется
+        один раз, ПОСЛЕ того как все карточки уже дорисованы порциями
+        в _do_refresh() (см. комментарий там)."""
 
         # ── Пустой экран ─────────────────────────────────────────────────
         if not tasks:
@@ -21400,10 +21436,20 @@ class DailyTodoApp(MDApp):
                         if not shared_dir.exists():
                             shared_dir.mkdirs()
                         out_file = File(shared_dir, fname)
-                        FileWriter = autoclass("java.io.FileWriter")
-                        fw = FileWriter(out_file)
-                        fw.write(String(payload.encode("utf-8"), "UTF-8"))
-                        fw.flush(); fw.close()
+                        # ВАЖНО: раньше здесь был FileWriter + String(bytes,
+                        # "UTF-8") — конструирование Java-строки напрямую из
+                        # Python bytes. У pyjnius это ненадёжный путь: при
+                        # неудачном приведении типов может случиться нативный
+                        # краш (segfault) НА УРОВНЕ JNI, минуя наш try/except
+                        # целиком — именно поэтому приложение "просто
+                        # закрывалось" без единой записи в debug-лог.
+                        # FileOutputStream.write(byte[]) с bytearray — куда
+                        # надёжнее и это стандартный рабочий паттерн для
+                        # записи файлов из pyjnius на Android.
+                        FileOutputStream = autoclass("java.io.FileOutputStream")
+                        fos = FileOutputStream(out_file)
+                        fos.write(bytearray(payload.encode("utf-8")))
+                        fos.flush(); fos.close()
 
                         uri = FileProviderCls.getUriForFile(
                             ctx, "org.flowdo.flowdo.fileprovider", out_file)
@@ -21420,11 +21466,20 @@ class DailyTodoApp(MDApp):
                         chooser = Intent.createChooser(intent, title_cs)
                         ctx.startActivity(chooser)
                     except Exception as e:
+                        self._log_debug(f"share_task _launch ERROR: {e!r}")
                         Clock.schedule_once(
                             lambda *_: self._show_toast(_L("Ошибка: {e}", e=e)), 0)
+                    except BaseException as e:
+                        # На случай экзотических ошибок на стороне Java/JNI,
+                        # которые pyjnius не оборачивает в обычный Exception —
+                        # ловим и их тоже, чтобы приложение не падало молча.
+                        self._log_debug(f"share_task _launch FATAL: {e!r}")
+                        Clock.schedule_once(
+                            lambda *_: self._show_toast(_L("Не удалось поделиться задачей")), 0)
 
                 _launch()
             except Exception as e:
+                self._log_debug(f"share_task ERROR: {e!r}")
                 self._show_toast(_L('Не удалось открыть меню "Поделиться": {e}', e=e))
         else:
             # На не-Android платформах системного "Поделиться файлом" нет —
