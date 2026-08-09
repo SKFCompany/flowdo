@@ -1,2 +1,0 @@
-<receiver android:name='org.flowdo.flowdo.AlarmNotificationReceiver' android:exported='false' android:enabled='true' />
-<receiver android:name='org.flowdo.flowdo.BootReceiver' android:exported='true' android:enabled='true'><intent-filter><action android:name='android.intent.action.BOOT_COMPLETED' /><action android:name='android.intent.action.QUICKBOOT_POWERON' /><action android:name='android.intent.action.MY_PACKAGE_REPLACED' /></intent-filter></receiver>
