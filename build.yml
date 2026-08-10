@@ -1,0 +1,94 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # ВАЖНО: раньше JDK ставили через "apt-get install openjdk-17-jdk",
+      # но на GitHub-раннере уже предустановлена JDK 11 (temurin-11), и она
+      # стояла раньше в PATH — реально использовалась 11-я версия, а не 17-я,
+      # хотя мы её ставили. android.api=34 в buildozer.spec требует Gradle,
+      # которому для сборки нужна минимум JDK 17. Явно выставляем через
+      # setup-java, которая сама правильно настраивает JAVA_HOME и PATH.
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git zip unzip \
+            autoconf libtool pkg-config \
+            zlib1g-dev libncurses5-dev \
+            libncursesw5-dev libtinfo5 cmake \
+            libffi-dev libssl-dev \
+            libltdl-dev
+          pip install --upgrade pip
+          pip install cython==0.29.37
+          pip install buildozer==1.5.0
+
+      # ВАЖНО: buildozer 1.5.0 / python-for-android ищут sdkmanager по
+      # СТАРОМУ пути "$ANDROID_HOME/tools/bin/sdkmanager" (это давно
+      # устаревший слой Android SDK — "SDK Tools"). Google убрал его из
+      # современных образов SDK, оставив только cmdline-tools, поэтому
+      # сборка падала с "sdkmanager path ... does not exist" ещё ДО того,
+      # как дело доходило до компиляции нашего кода. Симлинкуем старый путь
+      # на реальный sdkmanager из cmdline-tools, который на раннере уже есть.
+      - name: Fix legacy sdkmanager path for python-for-android
+        run: |
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          echo "Using Android SDK at: $SDK_ROOT"
+          REAL_SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -maxdepth 3 -name sdkmanager -type f | sort | tail -n1)
+          if [ -z "$REAL_SDKMANAGER" ]; then
+            echo "::error::sdkmanager not found anywhere under $SDK_ROOT/cmdline-tools"
+            find "$SDK_ROOT" -maxdepth 3 -iname "*sdkmanager*" || true
+            exit 1
+          fi
+          echo "Found real sdkmanager at: $REAL_SDKMANAGER"
+          mkdir -p "$SDK_ROOT/tools/bin"
+          ln -sf "$REAL_SDKMANAGER" "$SDK_ROOT/tools/bin/sdkmanager"
+          # chmod убран: он меняет права ЦЕЛЕВОГО файла симлинка (реальный
+          # sdkmanager внутри cmdline-tools), а он принадлежит root — у
+          # пользователя раннера нет прав его менять ("Operation not
+          # permitted"). И не нужно: файл уже исполняемый, иначе им не
+          # пользовались бы штатные android-действия самого раннера.
+          "$SDK_ROOT/tools/bin/sdkmanager" --version
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        run: |
+          yes | buildozer android debug 2>&1 | tee build.log
+        timeout-minutes: 90
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: flowdo-apk
+          path: bin/*.apk
+
+      - name: Upload log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log

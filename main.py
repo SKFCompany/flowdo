@@ -19827,14 +19827,14 @@ class DailyTodoApp(MDApp):
         today_h = _date.today()
         # Выровняем к понедельнику
         start_day = today_h - _td(days=today_h.weekday() + 7*4)
-        tasks_done_dates = set()
-        tasks_all_dates  = {}
+        tasks_done_dates = {}   # дата -> сколько задач выполнено
+        tasks_all_dates  = {}   # дата -> сколько задач всего
         for t in self.tasks.values():
             ds = t.get("date","")
             if ds:
                 tasks_all_dates[ds] = tasks_all_dates.get(ds, 0) + 1
                 if t.get("done"):
-                    tasks_done_dates.add(ds)
+                    tasks_done_dates[ds] = tasks_done_dates.get(ds, 0) + 1
         for week in range(5):
             week_row = MDBoxLayout(orientation="horizontal", size_hint_y=None,
                                     height=S(22), spacing=S(3))
@@ -19849,7 +19849,12 @@ class DailyTodoApp(MDApp):
                 d = start_day + _td(days=week*7+day)
                 ds = d.strftime("%d.%m.%Y")
                 total_d = tasks_all_dates.get(ds, 0)
-                done_d  = 1 if ds in tasks_done_dates else 0
+                # РАНЬШЕ done_d был просто 0/1 ("хоть одна задача выполнена
+                # в этот день"), а не реальным количеством. Из-за этого день
+                # с несколькими задачами красился как "частично выполнено",
+                # даже если на самом деле были выполнены ВСЕ задачи —
+                # 1 >= 3 ложно. Теперь done_d — настоящий счётчик.
+                done_d  = tasks_done_dates.get(ds, 0)
                 is_today = (d == today_h)
                 is_future = (d > today_h)
                 # Интенсивность цвета по количеству выполненных задач
@@ -19899,8 +19904,381 @@ class DailyTodoApp(MDApp):
         heat_box.add_widget(legend_row)
         inn.add_widget(heat_box)
 
+        # ── Отчёты с фильтрами и экспортом ──────────────────────────────
+        reports_btn = MDRaisedButton(
+            text=_L("\U0001f4ca Отчёты"), md_bg_color=C["accent"], elevation=0,
+            size_hint_x=1, size_hint_y=None, height=S(44))
+        reports_btn.bind(on_release=lambda *_: self._open_reports_dialog())
+        inn.add_widget(reports_btn)
+
         pg.add_widget(sv)
         return pg
+
+    # ════════════════════════════════════════════════════════════════════════
+    #  ОТЧЁТЫ: фильтры + экспорт в PDF/Excel
+    # ════════════════════════════════════════════════════════════════════════
+    def _open_reports_dialog(self):
+        """Диалог фильтров отчёта (категория, статус, период, хештеги)
+        с кнопками экспорта в PDF и Excel."""
+        from kivy.uix.modalview import ModalView
+
+        state = {"category": "Все", "status": "all",
+                 "date_from": "", "date_to": "", "tags_text": ""}
+
+        def _field_label(text):
+            l = MDLabel(text=text, font_style="Caption", bold=True,
+                        theme_text_color="Secondary", halign="left",
+                        size_hint_y=None, height=S(20))
+            l.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            return l
+
+        mv = ModalView(background_color=(0,0,0,0.6), auto_dismiss=False,
+                       size_hint=(0.92, None), height=Window.height*0.85,
+                       pos_hint={"center_x":0.5,"center_y":0.5})
+        outer_sv = ScrollView(size_hint=(1,1), do_scroll_x=False)
+        card = MDCard(orientation="vertical", size_hint_y=None,
+                      radius=[S(16)], elevation=8, md_bg_color=C["surf"],
+                      padding=[S(18),S(16)], spacing=S(10))
+        card.bind(minimum_height=card.setter("height"))
+
+        title = MDLabel(text=_L("Отчёты"), font_style="H6", bold=True,
+                        theme_text_color="Primary", halign="left",
+                        size_hint_y=None, height=S(32))
+        title.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        card.add_widget(title)
+
+        # ── Категория ────────────────────────────────────────────────────
+        card.add_widget(_field_label(_L("Категория")))
+        cat_sv = ScrollView(size_hint_y=None, height=S(38), do_scroll_y=False)
+        cat_box = MDBoxLayout(orientation="horizontal", size_hint_x=None, spacing=S(6))
+        cat_box.bind(minimum_width=cat_box.setter("width"))
+        cat_btns = {}
+        def _upd_cat_btns():
+            for k,b in cat_btns.items():
+                sel = (k == state["category"])
+                b.md_bg_color = C["accent"] if sel else C["surf2"]
+                if hasattr(b,"_lbl"): b._lbl.text_color=(1,1,1,1) if sel else C["text"]
+        for cname in ["Все"] + list(self.categories):
+            b = MDCard(size_hint_y=None, height=S(30), size_hint_x=None,
+                       width=S(len(cname)*8+28), radius=[S(15)], elevation=0)
+            bl = MDLabel(text=_L(cname), font_style="Caption", halign="center",
+                        valign="middle", theme_text_color="Custom")
+            bl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            b._lbl = bl; b.add_widget(bl)
+            def _pick_cat(w,t,c=cname):
+                if w.collide_point(*t.pos):
+                    state["category"] = c; _upd_cat_btns(); return True
+            b.bind(on_touch_up=_pick_cat)
+            cat_btns[cname] = b
+            cat_box.add_widget(b)
+        _upd_cat_btns()
+        cat_sv.add_widget(cat_box)
+        card.add_widget(cat_sv)
+
+        # ── Статус ───────────────────────────────────────────────────────
+        card.add_widget(_field_label(_L("Статус")))
+        st_row = MDBoxLayout(orientation="horizontal", spacing=S(6),
+                             size_hint_y=None, height=S(34))
+        st_btns = {}
+        def _upd_st_btns():
+            for k,b in st_btns.items():
+                sel = (k == state["status"])
+                b.md_bg_color = C["accent"] if sel else C["surf2"]
+                if hasattr(b,"_lbl"): b._lbl.text_color=(1,1,1,1) if sel else C["text"]
+        for lbl_txt,val in [(_L("Все"),"all"),(_L("Выполнено"),"done"),
+                             (_L("Не выполнено"),"undone")]:
+            b = MDCard(size_hint_y=None, height=S(30), radius=[S(15)], elevation=0)
+            bl = MDLabel(text=lbl_txt, font_style="Caption", halign="center",
+                        valign="middle", theme_text_color="Custom")
+            bl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+            b._lbl = bl; b.add_widget(bl)
+            def _pick_st(w,t,v=val):
+                if w.collide_point(*t.pos):
+                    state["status"] = v; _upd_st_btns(); return True
+            b.bind(on_touch_up=_pick_st)
+            st_btns[val] = b
+            st_row.add_widget(b)
+        _upd_st_btns()
+        card.add_widget(st_row)
+
+        # ── Период (переиспользуем CalendarWidget — как в _open_date_picker) ─
+        card.add_widget(_field_label(_L("Период (необязательно)")))
+        period_row = MDBoxLayout(orientation="horizontal", spacing=S(8),
+                                 size_hint_y=None, height=S(40))
+        from_btn = MDRaisedButton(text=_L("С: —"), md_bg_color=C["surf2"],
+                                  elevation=0, size_hint_x=0.5)
+        to_btn = MDRaisedButton(text=_L("По: —"), md_bg_color=C["surf2"],
+                                elevation=0, size_hint_x=0.5)
+        def _pick_period_date(which, btn, *_):
+            dates = {t.get("date","") for t in self.tasks.values()}
+            box = MDBoxLayout(orientation="vertical", adaptive_height=True, padding=[S(4)])
+            cal = CalendarWidget(task_dates=dates)
+            holder = {}
+            def _apply(*__):
+                ds = cal.sel.strftime("%d.%m.%Y")
+                state[which] = ds
+                btn.text = (_L("С: {d}", d=ds) if which=="date_from" else _L("По: {d}", d=ds))
+                holder["dlg"].dismiss()
+            def _clear(*__):
+                state[which] = ""
+                btn.text = _L("С: —") if which=="date_from" else _L("По: —")
+                holder["dlg"].dismiss()
+            box.add_widget(cal)
+            dlg = MDDialog(title=_L("Выберите дату"), type="custom", content_cls=box,
+                           buttons=[MDFlatButton(text=_L("Очистить"), on_release=_clear),
+                                    MDRaisedButton(text=_L("Выбрать"), md_bg_color=C["accent"],
+                                                   on_release=_apply)])
+            holder["dlg"] = dlg
+            dlg.open()
+        from_btn.bind(on_release=lambda *_: _pick_period_date("date_from", from_btn))
+        to_btn.bind(on_release=lambda *_: _pick_period_date("date_to", to_btn))
+        period_row.add_widget(from_btn); period_row.add_widget(to_btn)
+        card.add_widget(period_row)
+
+        # ── Хештеги ──────────────────────────────────────────────────────
+        card.add_widget(_field_label(_L("Хештеги через пробел (необязательно)")))
+        tags_field = MDTextField(hint_text=_L("#работа #важно"),
+                                 size_hint_y=None, height=S(44))
+        tags_field.bind(text=lambda i,v: state.__setitem__("tags_text", v))
+        card.add_widget(tags_field)
+
+        # ── Предпросмотр количества ─────────────────────────────────────
+        preview_lbl = MDLabel(text="", font_style="Body2",
+                              theme_text_color="Secondary", halign="left",
+                              size_hint_y=None, height=S(24))
+        preview_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        def _refresh_preview(*_):
+            matched = self._filter_report_tasks(state)
+            preview_lbl.text = _L("Найдено задач: {n}", n=len(matched))
+        refresh_btn = MDFlatButton(text=_L("Показать количество"),
+                                   theme_text_color="Custom", text_color=C["accent"])
+        refresh_btn.bind(on_release=_refresh_preview)
+        card.add_widget(refresh_btn)
+        card.add_widget(preview_lbl)
+        Clock.schedule_once(_refresh_preview, 0.05)
+
+        # ── Экспорт ──────────────────────────────────────────────────────
+        exp_row = MDBoxLayout(orientation="horizontal", spacing=S(8),
+                              size_hint_y=None, height=S(44))
+        pdf_btn = MDRaisedButton(text=_L("Экспорт PDF"), md_bg_color=C["accent"],
+                                 size_hint_x=0.5)
+        xlsx_btn = MDRaisedButton(text=_L("Экспорт Excel"), md_bg_color=C["accent"],
+                                  size_hint_x=0.5)
+        pdf_btn.bind(on_release=lambda *_: self._export_report("pdf", dict(state)))
+        xlsx_btn.bind(on_release=lambda *_: self._export_report("xlsx", dict(state)))
+        exp_row.add_widget(pdf_btn); exp_row.add_widget(xlsx_btn)
+        card.add_widget(exp_row)
+
+        close_btn = MDFlatButton(text=_L("Закрыть"), theme_text_color="Custom",
+                                 text_color=C["text2"])
+        close_btn.bind(on_release=lambda *_: mv.dismiss())
+        card.add_widget(close_btn)
+
+        outer_sv.add_widget(card)
+        mv.add_widget(outer_sv)
+        mv.open()
+
+    def _filter_report_tasks(self, state):
+        """Возвращает задачи, подходящие под фильтры диалога отчётов,
+        отсортированные по дате."""
+        cat = state.get("category", "Все")
+        status = state.get("status", "all")
+        d_from_s = state.get("date_from", "")
+        d_to_s   = state.get("date_to", "")
+        tags_text = state.get("tags_text", "").strip()
+        wanted_tags = [t.lstrip("#").lower() for t in tags_text.split() if t.strip()]
+
+        def _parse(ds):
+            try:
+                return datetime.strptime(ds, "%d.%m.%Y")
+            except Exception:
+                return None
+
+        d_from = _parse(d_from_s) if d_from_s else None
+        d_to   = _parse(d_to_s) if d_to_s else None
+
+        result = []
+        for t in self.tasks.values():
+            if cat != "Все" and t.get("category","") != cat:
+                continue
+            if status == "done" and not t.get("done"):
+                continue
+            if status == "undone" and t.get("done"):
+                continue
+            dk = _parse(t.get("date",""))
+            if d_from and (dk is None or dk < d_from):
+                continue
+            if d_to and (dk is None or dk > d_to):
+                continue
+            if wanted_tags:
+                task_tags = [tg.lower() for tg in t.get("tags",[])]
+                if not any(wt in task_tags for wt in wanted_tags):
+                    continue
+            result.append(t)
+        result.sort(key=lambda t: t.get("date",""))
+        return result
+
+    def _get_cyrillic_ttf_path(self):
+        """Ищет TTF-шрифт с поддержкой кириллицы для reportlab (по
+        умолчанию у reportlab только Helvetica без кириллицы — русский
+        текст в PDF превратился бы в квадратики). Kivy уже несёт в
+        комплекте Roboto с кириллицей — иначе весь интерфейс приложения
+        показывал бы вместо текста квадраты — берём именно его, чтобы не
+        тащить в APK ещё один шрифт весом в мегабайты."""
+        try:
+            from kivy.resources import resource_find
+            p = resource_find("Roboto-Regular.ttf")
+            if p and os.path.exists(p):
+                return p
+        except Exception:
+            pass
+        try:
+            import kivy
+            candidate = os.path.join(os.path.dirname(kivy.__file__),
+                                     "data", "fonts", "Roboto-Regular.ttf")
+            if os.path.exists(candidate):
+                return candidate
+        except Exception:
+            pass
+        return None
+
+    def _export_report(self, fmt, state):
+        tasks = self._filter_report_tasks(state)
+        if not tasks:
+            self._show_toast(_L("Нет задач по заданным фильтрам"))
+            return
+        try:
+            if fmt == "pdf":
+                path, fname = self._build_report_pdf(tasks, state)
+                mime = "application/pdf"
+            else:
+                path, fname = self._build_report_xlsx(tasks, state)
+                mime = ("application/vnd.openxmlformats-officedocument"
+                         ".spreadsheetml.sheet")
+            if PLATFORM == "android":
+                self._share_file_android(path, mime, _L("Отчёт Flow\u00b7Do"))
+            else:
+                self._show_toast(_L("Файл сохранён: {p}", p=path))
+        except Exception as e:
+            self._log_debug(f"_export_report ERROR: {e!r}")
+            self._show_toast(_L("Ошибка экспорта: {e}", e=e))
+
+    def _report_meta_lines(self, state):
+        bits = []
+        if state.get("category","Все") != "Все":
+            bits.append(_L("Категория: {c}", c=state["category"]))
+        if state.get("status","all") != "all":
+            bits.append(_L("Статус: {s}", s=(_L("Выполнено") if state["status"]=="done"
+                                               else _L("Не выполнено"))))
+        if state.get("date_from"):
+            bits.append(_L("С: {d}", d=state["date_from"]))
+        if state.get("date_to"):
+            bits.append(_L("По: {d}", d=state["date_to"]))
+        if state.get("tags_text","").strip():
+            bits.append(_L("Теги: {t}", t=state["tags_text"].strip()))
+        bits.append(_L("Сформировано: {d}", d=datetime.now().strftime("%d.%m.%Y %H:%M")))
+        return bits
+
+    def _build_report_pdf(self, tasks, state):
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+
+        font_name = "Helvetica"
+        font_path = self._get_cyrillic_ttf_path()
+        if font_path:
+            try:
+                pdfmetrics.registerFont(TTFont("FlowDoFont", font_path))
+                font_name = "FlowDoFont"
+            except Exception as e:
+                self._log_debug(f"_build_report_pdf font ERROR: {e!r}")
+
+        out_name = f"FlowDo_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        out_path = os.path.join(self._get_export_dir(), out_name)
+
+        styles = getSampleStyleSheet()
+        title_style  = ParagraphStyle("TitleRu", parent=styles["Title"], fontName=font_name)
+        normal_style = ParagraphStyle("NormalRu", parent=styles["Normal"],
+                                      fontName=font_name, fontSize=9, leading=11)
+        hdr_style    = ParagraphStyle("HdrRu", parent=styles["Normal"],
+                                      fontName=font_name, fontSize=9,
+                                      textColor=colors.white)
+
+        doc = SimpleDocTemplate(out_path, pagesize=A4,
+                                leftMargin=14*mm, rightMargin=14*mm,
+                                topMargin=14*mm, bottomMargin=14*mm)
+        elems = [Paragraph(_L("Отчёт Flow\u00b7Do"), title_style), Spacer(1, 4*mm)]
+        elems.append(Paragraph(" &nbsp;|&nbsp; ".join(self._report_meta_lines(state)),
+                               normal_style))
+        elems.append(Spacer(1, 6*mm))
+
+        header = [Paragraph(h, hdr_style) for h in
+                  (_L("Дата"), _L("Категория"), _L("Задача"), _L("Статус"), _L("Теги"))]
+        data = [header]
+        for t in tasks:
+            data.append([
+                Paragraph(t.get("date",""), normal_style),
+                Paragraph(t.get("category",""), normal_style),
+                Paragraph(t.get("title",""), normal_style),
+                Paragraph(_L("Выполнено") if t.get("done") else _L("Не выполнено"), normal_style),
+                Paragraph(" ".join("#"+tg for tg in t.get("tags",[])), normal_style),
+            ])
+        col_widths = [22*mm, 28*mm, 62*mm, 28*mm, 32*mm]
+        tbl = Table(data, colWidths=col_widths, repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0,0), (-1,0), colors.HexColor("#F0714A")),
+            ("GRID", (0,0), (-1,-1), 0.4, colors.HexColor("#DDDDDD")),
+            ("VALIGN", (0,0), (-1,-1), "TOP"),
+            ("ROWBACKGROUNDS", (0,1), (-1,-1), [colors.white, colors.HexColor("#F7F7F7")]),
+        ]))
+        elems.append(tbl)
+        doc.build(elems)
+        return out_path, out_name
+
+    def _build_report_xlsx(self, tasks, state):
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.utils import get_column_letter
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "FlowDo"
+
+        ws["A1"] = _L("Отчёт Flow\u00b7Do")
+        ws["A1"].font = Font(bold=True, size=14)
+        ws.merge_cells("A1:E1")
+        ws["A2"] = " | ".join(self._report_meta_lines(state))
+        ws["A2"].font = Font(italic=True, size=9, color="666666")
+        ws.merge_cells("A2:E2")
+
+        headers = [_L("Дата"), _L("Категория"), _L("Задача"), _L("Статус"), _L("Теги")]
+        hdr_row = 4
+        for col, h in enumerate(headers, start=1):
+            c = ws.cell(row=hdr_row, column=col, value=h)
+            c.font = Font(bold=True, color="FFFFFF")
+            c.fill = PatternFill("solid", fgColor="F0714A")
+            c.alignment = Alignment(horizontal="left", vertical="center")
+
+        for i, t in enumerate(tasks, start=hdr_row+1):
+            ws.cell(row=i, column=1, value=t.get("date",""))
+            ws.cell(row=i, column=2, value=t.get("category",""))
+            ws.cell(row=i, column=3, value=t.get("title",""))
+            ws.cell(row=i, column=4,
+                    value=_L("Выполнено") if t.get("done") else _L("Не выполнено"))
+            ws.cell(row=i, column=5, value=" ".join("#"+tg for tg in t.get("tags",[])))
+
+        widths = [12, 16, 40, 14, 24]
+        for col, w in enumerate(widths, start=1):
+            ws.column_dimensions[get_column_letter(col)].width = w
+
+        out_name = f"FlowDo_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        out_path = os.path.join(self._get_export_dir(), out_name)
+        wb.save(out_path)
+        return out_path, out_name
 
     def _pick_mood_stat(self, v):
         self._save_mood(v)
@@ -21382,6 +21760,96 @@ class DailyTodoApp(MDApp):
         except Exception as e:
             self._show_toast(_L("Ошибка импорта: {e}", e=e))
 
+    def _share_file_android(self, file_path, mime_type, chooser_title, fname=None):
+        """Общий метод отправки локального файла через системное меню
+        "Поделиться" (ACTION_SEND + FileProvider). Вынесен из share_task()
+        в отдельный переиспользуемый метод — тем же путём (и с теми же
+        уже найденными и исправленными подводными камнями pyjnius) теперь
+        пользуются и share_task(), и экспорт отчётов в PDF/Excel.
+        """
+        try:
+            from android.runnable import run_on_ui_thread
+            from jnius import autoclass, cast
+
+            @run_on_ui_thread
+            def _launch():
+                try:
+                    PythonActivity = autoclass("org.kivy.android.PythonActivity")
+                    FileProviderCls = autoclass("androidx.core.content.FileProvider")
+                    File = autoclass("java.io.File")
+                    Intent = autoclass("android.content.Intent")
+                    String = autoclass("java.lang.String")
+
+                    ctx = PythonActivity.mActivity
+                    out_file = File(file_path)
+                    uri = FileProviderCls.getUriForFile(
+                        ctx, "org.flowdo.flowdo.fileprovider", out_file)
+
+                    intent = Intent(Intent.ACTION_SEND)
+                    intent.setType(mime_type)
+                    # putExtra(String,Parcelable) — см. подробный комментарий
+                    # в истории правок share_task: без явного каста к
+                    # Parcelable pyjnius путает перегрузки putExtra() и
+                    # пытается передать Uri как String, что падает с
+                    # TypeError и закрывает приложение.
+                    intent.putExtra(Intent.EXTRA_STREAM,
+                                    cast("android.os.Parcelable", uri))
+                    intent.putExtra(Intent.EXTRA_SUBJECT,
+                                    cast("java.lang.CharSequence", String(chooser_title)))
+                    intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    title_cs = cast("java.lang.CharSequence", String(chooser_title))
+                    chooser = Intent.createChooser(intent, title_cs)
+                    ctx.startActivity(chooser)
+                except Exception as e:
+                    self._log_debug(f"_share_file_android _launch ERROR: {e!r}")
+                    Clock.schedule_once(
+                        lambda *_: self._show_toast(_L("Ошибка: {e}", e=e)), 0)
+                except BaseException as e:
+                    self._log_debug(f"_share_file_android _launch FATAL: {e!r}")
+                    Clock.schedule_once(
+                        lambda *_: self._show_toast(_L("Не удалось поделиться файлом")), 0)
+
+            _launch()
+        except Exception as e:
+            self._log_debug(f"_share_file_android ERROR: {e!r}")
+            self._show_toast(_L('Не удалось открыть меню "Поделиться": {e}', e=e))
+
+    def _get_export_dir(self):
+        """Директория для экспортируемых файлов (расшаренные задачи,
+        отчёты PDF/Excel). На Android — app-specific external storage
+        (НЕ требует рантайм-разрешений, работает на всех версиях API без
+        плясок со Scoped Storage); на десктопе — текущая рабочая
+        директория. Путь — обычная строка, поэтому пишем в неё стандартным
+        Python-'open()' — никакого pyjnius/JNI на этом шаге не нужно."""
+        if PLATFORM == "android":
+            try:
+                from jnius import autoclass
+                PythonActivity = autoclass("org.kivy.android.PythonActivity")
+                ctx = PythonActivity.mActivity
+                base = ctx.getExternalFilesDir(None).getAbsolutePath()
+            except Exception:
+                from android.storage import app_storage_path
+                base = app_storage_path()
+            d = os.path.join(base, "shared")
+        else:
+            d = os.getcwd()
+        os.makedirs(d, exist_ok=True)
+        return d
+
+    def _write_to_shared_dir(self, fname, data_bytes):
+        """Пишет байты в файл внутри экспортной директории (см.
+        _get_export_dir) и возвращает полный путь к файлу. Используется и
+        для share_task(), и для экспорта отчётов.
+
+        РАНЬШЕ это писалось через pyjnius (Java FileOutputStream) — но
+        обычный python open() пишет в ту же самую директорию ничуть не
+        хуже, без единого обращения к JNI на этом шаге, а значит и без
+        риска повторить с этим местом историю с крашем из share_task."""
+        path = os.path.join(self._get_export_dir(), fname)
+        with open(path, "wb") as f:
+            f.write(data_bytes)
+        return path
+
     def share_task(self, task_id):
         """Делится задачей ФАЙЛОМ (.json) через системное меню "Поделиться".
 
@@ -21409,75 +21877,10 @@ class DailyTodoApp(MDApp):
 
         if PLATFORM == "android":
             try:
-                from android.runnable import run_on_ui_thread
-                from jnius import autoclass, cast
-
-                # Имя файла — из заголовка задачи, очищенное от символов,
-                # недопустимых в имени файла, плюс короткий суффикс id,
-                # чтобы разные задачи не затирали один и тот же файл.
                 safe_title = re.sub(r'[^\w\-() ]', '', task.get("title","task"))[:40].strip() or "task"
                 fname = f"{safe_title}_{task_id}.json"
-
-                @run_on_ui_thread
-                def _launch():
-                    try:
-                        Environment = autoclass("android.os.Environment")
-                        PythonActivity = autoclass("org.kivy.android.PythonActivity")
-                        FileProviderCls = autoclass("androidx.core.content.FileProvider")
-                        File = autoclass("java.io.File")
-                        Intent = autoclass("android.content.Intent")
-                        String = autoclass("java.lang.String")
-
-                        ctx = PythonActivity.mActivity
-                        # Директория "shared/" внутри app-specific external
-                        # storage — совпадает с <external-files-path name="shared"
-                        # path="shared/"/> в res/xml/file_provider_paths.xml.
-                        shared_dir = File(ctx.getExternalFilesDir(None), "shared")
-                        if not shared_dir.exists():
-                            shared_dir.mkdirs()
-                        out_file = File(shared_dir, fname)
-                        # ВАЖНО: раньше здесь был FileWriter + String(bytes,
-                        # "UTF-8") — конструирование Java-строки напрямую из
-                        # Python bytes. У pyjnius это ненадёжный путь: при
-                        # неудачном приведении типов может случиться нативный
-                        # краш (segfault) НА УРОВНЕ JNI, минуя наш try/except
-                        # целиком — именно поэтому приложение "просто
-                        # закрывалось" без единой записи в debug-лог.
-                        # FileOutputStream.write(byte[]) с bytearray — куда
-                        # надёжнее и это стандартный рабочий паттерн для
-                        # записи файлов из pyjnius на Android.
-                        FileOutputStream = autoclass("java.io.FileOutputStream")
-                        fos = FileOutputStream(out_file)
-                        fos.write(bytearray(payload.encode("utf-8")))
-                        fos.flush(); fos.close()
-
-                        uri = FileProviderCls.getUriForFile(
-                            ctx, "org.flowdo.flowdo.fileprovider", out_file)
-
-                        intent = Intent(Intent.ACTION_SEND)
-                        intent.setType("application/json")
-                        intent.putExtra(Intent.EXTRA_STREAM, uri)
-                        intent.putExtra(Intent.EXTRA_SUBJECT,
-                                        cast("java.lang.CharSequence",
-                                             String(_L("Задача из Flow\u00b7Do"))))
-                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        title_cs = cast("java.lang.CharSequence",
-                                        String(_L("Поделиться задачей")))
-                        chooser = Intent.createChooser(intent, title_cs)
-                        ctx.startActivity(chooser)
-                    except Exception as e:
-                        self._log_debug(f"share_task _launch ERROR: {e!r}")
-                        Clock.schedule_once(
-                            lambda *_: self._show_toast(_L("Ошибка: {e}", e=e)), 0)
-                    except BaseException as e:
-                        # На случай экзотических ошибок на стороне Java/JNI,
-                        # которые pyjnius не оборачивает в обычный Exception —
-                        # ловим и их тоже, чтобы приложение не падало молча.
-                        self._log_debug(f"share_task _launch FATAL: {e!r}")
-                        Clock.schedule_once(
-                            lambda *_: self._show_toast(_L("Не удалось поделиться задачей")), 0)
-
-                _launch()
+                path = self._write_to_shared_dir(fname, payload.encode("utf-8"))
+                self._share_file_android(path, "application/json", _L("Задача из Flow\u00b7Do"))
             except Exception as e:
                 self._log_debug(f"share_task ERROR: {e!r}")
                 self._show_toast(_L('Не удалось открыть меню "Поделиться": {e}', e=e))
@@ -21492,6 +21895,359 @@ class DailyTodoApp(MDApp):
                 self._show_toast(_L("Файл сохранён: {p}", p=out_path))
             except Exception as e:
                 self._show_toast(_L("Ошибка сохранения файла: {e}", e=e))
+
+    # ════════════════════════════════════════════════════════════════════════
+    #  ОТЧЁТЫ: фильтры + экспорт в PDF / Excel
+    # ════════════════════════════════════════════════════════════════════════
+    def _filter_report_tasks(self, state):
+        """Возвращает задачи, подходящие под фильтры отчёта: категория,
+        статус, диапазон дат, хештеги (совпадение по любому из указанных)."""
+        cat = state.get("category", "Все")
+        status = state.get("status", "all")
+        tags_text = state.get("tags_text", "").strip()
+        wanted_tags = [t.lstrip("#").lower() for t in tags_text.split() if t.strip()]
+
+        def _dk(ds):
+            try:
+                return datetime.strptime(ds, "%d.%m.%Y")
+            except Exception:
+                return None
+
+        df = _dk(state.get("date_from", "")) if state.get("date_from") else None
+        dt = _dk(state.get("date_to", "")) if state.get("date_to") else None
+
+        result = []
+        for t in self.tasks.values():
+            if cat != "Все" and t.get("category", "") != cat:
+                continue
+            if status == "done" and not t.get("done"):
+                continue
+            if status == "undone" and t.get("done"):
+                continue
+            tk = _dk(t.get("date", ""))
+            if df and (tk is None or tk < df):
+                continue
+            if dt and (tk is None or tk > dt):
+                continue
+            if wanted_tags:
+                task_tags = [tg.lower() for tg in t.get("tags", [])]
+                if not any(wt in task_tags for wt in wanted_tags):
+                    continue
+            result.append(t)
+        result.sort(key=lambda t: t.get("date", ""))
+        return result
+
+    def _get_cyrillic_ttf_path(self):
+        """Ищет TTF-шрифт с поддержкой кириллицы для reportlab.
+
+        Стандартные шрифты reportlab (Helvetica и т.п.) кириллицу не
+        содержат вообще — русский текст в PDF превратился бы в пустые
+        квадраты. Отдельный TTF-файл в проект не тащим: Kivy и так несёт
+        в комплекте Roboto с кириллицей (иначе весь интерфейс приложения
+        показывал бы вместо русского текста те же квадраты) — берём именно
+        его, он уже есть в APK."""
+        try:
+            from kivy.resources import resource_find
+            p = resource_find("Roboto-Regular.ttf")
+            if p and os.path.exists(p):
+                return p
+        except Exception:
+            pass
+        try:
+            import kivy
+            candidate = os.path.join(os.path.dirname(kivy.__file__),
+                                      "data", "fonts", "Roboto-Regular.ttf")
+            if os.path.exists(candidate):
+                return candidate
+        except Exception:
+            pass
+        return None
+
+    def _report_meta_lines(self, state):
+        bits = []
+        if state.get("category", "Все") != "Все":
+            bits.append(_L("Категория: {c}", c=state["category"]))
+        if state.get("status", "all") != "all":
+            bits.append(_L("Статус: {s}", s=(_L("Выполнено") if state["status"] == "done"
+                                               else _L("Не выполнено"))))
+        if state.get("date_from"):
+            bits.append(_L("С: {d}", d=state["date_from"]))
+        if state.get("date_to"):
+            bits.append(_L("По: {d}", d=state["date_to"]))
+        if state.get("tags_text", "").strip():
+            bits.append(_L("Теги: {t}", t=state["tags_text"].strip()))
+        bits.append(_L("Сформировано: {d}", d=datetime.now().strftime("%d.%m.%Y %H:%M")))
+        return bits
+
+    def _build_report_pdf(self, tasks, state):
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.units import mm
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+
+        font_name = "Helvetica"
+        font_path = self._get_cyrillic_ttf_path()
+        if font_path:
+            try:
+                pdfmetrics.registerFont(TTFont("FlowDoFont", font_path))
+                font_name = "FlowDoFont"
+            except Exception as e:
+                self._log_debug(f"_build_report_pdf font ERROR: {e!r}")
+
+        out_name = f"FlowDo_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        out_path = os.path.join(self._get_export_dir(), out_name)
+
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle("TitleRu", parent=styles["Title"], fontName=font_name)
+        normal_style = ParagraphStyle("NormalRu", parent=styles["Normal"],
+                                       fontName=font_name, fontSize=9, leading=12)
+        hdr_style = ParagraphStyle("HdrRu", parent=normal_style, textColor=colors.white)
+
+        doc = SimpleDocTemplate(out_path, pagesize=A4,
+                                 leftMargin=14*mm, rightMargin=14*mm,
+                                 topMargin=14*mm, bottomMargin=14*mm)
+        elems = [Paragraph(_L("Отчёт Flow\u00b7Do"), title_style), Spacer(1, 3*mm),
+                 Paragraph(" \u2022 ".join(self._report_meta_lines(state)), normal_style),
+                 Spacer(1, 6*mm)]
+
+        header = [Paragraph(h, hdr_style) for h in
+                  (_L("Дата"), _L("Категория"), _L("Задача"), _L("Статус"), _L("Теги"))]
+        data = [header]
+        for t in tasks:
+            data.append([
+                Paragraph(t.get("date", ""), normal_style),
+                Paragraph(t.get("category", ""), normal_style),
+                Paragraph(t.get("title", ""), normal_style),
+                Paragraph(_L("Выполнено") if t.get("done") else _L("Не выполнено"), normal_style),
+                Paragraph(" ".join("#"+tg for tg in t.get("tags", [])), normal_style),
+            ])
+        tbl = Table(data, colWidths=[22*mm, 28*mm, 62*mm, 28*mm, 32*mm], repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#F0714A")),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#DDDDDD")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F7F7F7")]),
+        ]))
+        elems.append(tbl)
+        doc.build(elems)
+        return out_path, "application/pdf"
+
+    def _build_report_xlsx(self, tasks, state):
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Отчёт"
+
+        ws.append([_L("Отчёт Flow\u00b7Do")])
+        ws.append([" \u2022 ".join(self._report_meta_lines(state))])
+        ws.append([])
+        header = [_L("Дата"), _L("Категория"), _L("Задача"), _L("Статус"), _L("Теги")]
+        ws.append(header)
+        hdr_fill = PatternFill(start_color="F0714A", end_color="F0714A", fill_type="solid")
+        for col in range(1, len(header)+1):
+            c = ws.cell(row=4, column=col)
+            c.font = Font(bold=True, color="FFFFFF")
+            c.fill = hdr_fill
+            c.alignment = Alignment(vertical="center")
+        for t in tasks:
+            ws.append([
+                t.get("date", ""), t.get("category", ""), t.get("title", ""),
+                _L("Выполнено") if t.get("done") else _L("Не выполнено"),
+                " ".join("#"+tg for tg in t.get("tags", [])),
+            ])
+        widths = [12, 16, 42, 14, 24]
+        for i, w in enumerate(widths, start=1):
+            ws.column_dimensions[chr(64+i)].width = w
+        ws.freeze_panes = "A5"
+
+        out_name = f"FlowDo_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        out_path = os.path.join(self._get_export_dir(), out_name)
+        wb.save(out_path)
+        return out_path, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+
+    def _export_report(self, fmt, state):
+        tasks = self._filter_report_tasks(state)
+        if not tasks:
+            self._show_toast(_L("Нет задач по заданным фильтрам"))
+            return
+        try:
+            if fmt == "pdf":
+                path, mime = self._build_report_pdf(tasks, state)
+            else:
+                path, mime = self._build_report_xlsx(tasks, state)
+            if PLATFORM == "android":
+                self._share_file_android(path, mime, _L("Отчёт Flow\u00b7Do"))
+            else:
+                self._show_toast(_L("Файл сохранён: {p}", p=path))
+        except Exception as e:
+            self._log_debug(f"_export_report ERROR: {e!r}")
+            self._show_toast(_L("Ошибка экспорта: {e}", e=e))
+
+    def _open_reports_dialog(self):
+        """Диалог фильтров отчёта: категория, статус, период, хештеги —
+        и кнопки экспорта в PDF/Excel."""
+        from kivy.uix.modalview import ModalView
+
+        state = {"category": "Все", "status": "all",
+                 "date_from": "", "date_to": "", "tags_text": ""}
+
+        def _field_label(text):
+            lb = MDLabel(text=text, font_style="Caption", theme_text_color="Secondary",
+                         halign="left", size_hint_y=None, height=S(20))
+            lb.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+            return lb
+
+        mv = ModalView(background_color=(0, 0, 0, 0.6), auto_dismiss=False,
+                       size_hint=(0.92, None), pos_hint={"center_x": 0.5, "center_y": 0.5})
+        outer_sv = ScrollView(size_hint=(1, None), height=Window.height*0.85, do_scroll_x=False)
+        card = MDCard(orientation="vertical", size_hint_y=None,
+                      radius=[S(16)], elevation=8, md_bg_color=C["surf"],
+                      padding=[S(18), S(16)], spacing=S(10))
+        card.bind(minimum_height=card.setter("height"))
+
+        title = MDLabel(text=_L("Отчёты"), font_style="H6", bold=True,
+                        theme_text_color="Primary", halign="left",
+                        size_hint_y=None, height=S(32))
+        title.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+        card.add_widget(title)
+
+        # ── Категория ────────────────────────────────────────────────────
+        card.add_widget(_field_label(_L("Категория")))
+        cat_sv = ScrollView(size_hint_y=None, height=S(36), do_scroll_y=False)
+        cat_box = MDBoxLayout(orientation="horizontal", size_hint_x=None, spacing=S(6))
+        cat_box.bind(minimum_width=cat_box.setter("width"))
+        cat_btns = {}
+        def _upd_cat_btns():
+            for k, b in cat_btns.items():
+                sel = (k == state["category"])
+                b.md_bg_color = C["accent"] if sel else C["surf2"]
+                if hasattr(b, "_lbl"):
+                    b._lbl.text_color = (1, 1, 1, 1) if sel else C["text"]
+        for cname in ["Все"] + list(self.categories):
+            b = MDCard(size_hint_y=None, height=S(30), size_hint_x=None,
+                      width=S(len(cname)*8+30), radius=[S(15)], elevation=0)
+            bl = MDLabel(text=cname, font_style="Caption", halign="center",
+                        valign="middle", theme_text_color="Custom")
+            bl.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+            b._lbl = bl; b.add_widget(bl)
+            def _pick_cat(w, t, c=cname):
+                if w.collide_point(*t.pos):
+                    state["category"] = c; _upd_cat_btns(); return True
+            b.bind(on_touch_up=_pick_cat)
+            cat_btns[cname] = b
+            cat_box.add_widget(b)
+        _upd_cat_btns()
+        cat_sv.add_widget(cat_box)
+        card.add_widget(cat_sv)
+
+        # ── Статус ───────────────────────────────────────────────────────
+        card.add_widget(_field_label(_L("Статус")))
+        st_row = MDBoxLayout(orientation="horizontal", spacing=S(6),
+                             size_hint_y=None, height=S(34))
+        st_btns = {}
+        def _upd_st_btns():
+            for k, b in st_btns.items():
+                sel = (k == state["status"])
+                b.md_bg_color = C["accent"] if sel else C["surf2"]
+                if hasattr(b, "_lbl"):
+                    b._lbl.text_color = (1, 1, 1, 1) if sel else C["text"]
+        for lbl_txt, val in [(_L("Все"), "all"), (_L("Выполнено"), "done"),
+                              (_L("Не выполнено"), "undone")]:
+            b = MDCard(size_hint_y=None, height=S(30), radius=[S(15)], elevation=0)
+            bl = MDLabel(text=lbl_txt, font_style="Caption", halign="center",
+                        valign="middle", theme_text_color="Custom")
+            bl.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+            b._lbl = bl; b.add_widget(bl)
+            def _pick_st(w, t, v=val):
+                if w.collide_point(*t.pos):
+                    state["status"] = v; _upd_st_btns(); return True
+            b.bind(on_touch_up=_pick_st)
+            st_btns[val] = b
+            st_row.add_widget(b)
+        _upd_st_btns()
+        card.add_widget(st_row)
+
+        # ── Период ───────────────────────────────────────────────────────
+        card.add_widget(_field_label(_L("Период (необязательно)")))
+        period_row = MDBoxLayout(orientation="horizontal", spacing=S(8),
+                                 size_hint_y=None, height=S(40))
+        from_btn = MDRaisedButton(text=_L("С: \u2014"), md_bg_color=C["surf2"],
+                                  elevation=0, size_hint_x=0.5)
+        to_btn = MDRaisedButton(text=_L("По: \u2014"), md_bg_color=C["surf2"],
+                                elevation=0, size_hint_x=0.5)
+        def _pick_period_date(which, btn):
+            dates = {t.get("date", "") for t in self.tasks.values()}
+            box = MDBoxLayout(orientation="vertical", adaptive_height=True, padding=[S(4)])
+            cal = CalendarWidget(task_dates=dates)
+            holder = {}
+            def _apply(*_):
+                d = cal.sel
+                ds = d.strftime("%d.%m.%Y")
+                state[which] = ds
+                btn.text = (_L("С: {d}", d=ds) if which == "date_from"
+                            else _L("По: {d}", d=ds))
+                holder["dlg"].dismiss()
+            def _clear(*_):
+                state[which] = ""
+                btn.text = _L("С: \u2014") if which == "date_from" else _L("По: \u2014")
+                holder["dlg"].dismiss()
+            box.add_widget(cal)
+            dlg = MDDialog(title=_L("Выберите дату"), type="custom", content_cls=box,
+                           buttons=[MDFlatButton(text=_L("Очистить"), on_release=_clear),
+                                    MDRaisedButton(text=_L("Выбрать"), md_bg_color=C["accent"],
+                                                   on_release=_apply)])
+            holder["dlg"] = dlg
+            dlg.open()
+        from_btn.bind(on_release=lambda *_: _pick_period_date("date_from", from_btn))
+        to_btn.bind(on_release=lambda *_: _pick_period_date("date_to", to_btn))
+        period_row.add_widget(from_btn); period_row.add_widget(to_btn)
+        card.add_widget(period_row)
+
+        # ── Хештеги ──────────────────────────────────────────────────────
+        card.add_widget(_field_label(_L("Хештеги через пробел (необязательно)")))
+        tags_field = MDTextField(hint_text=_L("#работа #важно"),
+                                 size_hint_y=None, height=S(44))
+        tags_field.bind(text=lambda inst, val: state.__setitem__("tags_text", val))
+        card.add_widget(tags_field)
+
+        # ── Предпросмотр количества ─────────────────────────────────────
+        preview_lbl = MDLabel(text="", font_style="Body2", theme_text_color="Secondary",
+                              halign="left", size_hint_y=None, height=S(22))
+        preview_lbl.bind(size=lambda w, s: setattr(w, "text_size", (s[0], None)))
+        card.add_widget(preview_lbl)
+        def _refresh_preview(*_):
+            preview_lbl.text = _L("Найдено задач: {n}", n=len(self._filter_report_tasks(state)))
+        preview_btn = MDFlatButton(text=_L("Показать количество"),
+                                   theme_text_color="Custom", text_color=C["accent"])
+        preview_btn.bind(on_release=_refresh_preview)
+        card.add_widget(preview_btn)
+        Clock.schedule_once(_refresh_preview, 0.05)
+
+        # ── Экспорт ──────────────────────────────────────────────────────
+        exp_row = MDBoxLayout(orientation="horizontal", spacing=S(8),
+                              size_hint_y=None, height=S(44))
+        pdf_btn = MDRaisedButton(text=_L("Экспорт PDF"), md_bg_color=C["accent"],
+                                 size_hint_x=0.5)
+        xlsx_btn = MDRaisedButton(text=_L("Экспорт Excel"), md_bg_color=C["accent"],
+                                  size_hint_x=0.5)
+        pdf_btn.bind(on_release=lambda *_: self._export_report("pdf", dict(state)))
+        xlsx_btn.bind(on_release=lambda *_: self._export_report("xlsx", dict(state)))
+        exp_row.add_widget(pdf_btn); exp_row.add_widget(xlsx_btn)
+        card.add_widget(exp_row)
+
+        close_btn = MDFlatButton(text=_L("Закрыть"), theme_text_color="Custom",
+                                 text_color=C["text2"])
+        close_btn.bind(on_release=lambda *_: mv.dismiss())
+        card.add_widget(close_btn)
+
+        outer_sv.add_widget(card)
+        mv.add_widget(outer_sv)
+        mv.open()
 
     def import_from_text(self, *_):
         """Диалог ручного ввода/вставки JSON задачи для импорта."""
