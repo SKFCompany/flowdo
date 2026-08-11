@@ -95,6 +95,7 @@ from kivymd.uix.screen import MDScreen
 from kivymd.uix.screenmanager import MDScreenManager
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
+from kivy.uix.behaviors import ButtonBehavior
 from kivymd.uix.label import MDLabel
 from kivymd.uix.button import MDRaisedButton, MDFlatButton, MDIconButton
 from kivymd.uix.textfield import MDTextField
@@ -15924,6 +15925,22 @@ def update_emoji_label(widget, new_text):
 # ═══════════════════════════════════════════════════════════════════════════
 #  Голосовой помощник
 # ═══════════════════════════════════════════════════════════════════════════
+class TapCard(ButtonBehavior, MDCard):
+    """MDCard с нормальным поведением кнопки (on_press/on_release).
+
+    РАНЬШЕ во многих местах интерактивные карточки делались вручную через
+    card.bind(on_touch_up=...) + collide_point(*touch.pos) — в большинстве
+    мест это работает, но как минимум для переключателя периода в
+    статистике (Неделя/Месяц/Всё) не срабатывало вообще. ButtonBehavior —
+    штатный, многократно проверенный Kivy-механизм обработки нажатий,
+    который сам корректно обрабатывает случаи, которые ручной
+    on_touch_up+collide_point может пропустить (например, если где-то по
+    дереву виджетов touch уже был грабнут раньше). Новый код интерактивных
+    карточек стоит писать через этот класс, а не через ручной on_touch_up.
+    """
+    pass
+
+
 class CalendarWidget(MDBoxLayout):
     def __init__(self, on_select=None, task_dates=None, **kw):
         super().__init__(**kw)
@@ -19530,7 +19547,7 @@ class DailyTodoApp(MDApp):
                        size_hint_y=None, height=S(30))
         for txt,val in [(_L("Неделя"),"week"),(_L("Месяц"),"month"),(_L("Всё"),"all")]:
             sel=(val=="week")
-            btn=MDCard(size_hint_y=None, height=S(28), size_hint_x=None, width=S(70),
+            btn=TapCard(size_hint_y=None, height=S(28), size_hint_x=None, width=S(70),
                        radius=[S(14)], elevation=0,
                        md_bg_color=C["accent"] if sel else C["surf2"])
             sp_lbl=MDLabel(text=txt, font_style="Caption",
@@ -19539,14 +19556,13 @@ class DailyTodoApp(MDApp):
                            text_color=(1,1,1,1) if sel else C["text"])
             sp_lbl.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
             btn._lbl=sp_lbl; btn.add_widget(sp_lbl)
-            def _sp(w,t,v=val):
-                if w.collide_point(*t.pos):
-                    self._stat_period=v
-                    for kk,bb in self._sp_btns.items():
-                        s2=(kk==v); bb.md_bg_color=C["accent"] if s2 else C["surf2"]
-                        if hasattr(bb,"_lbl"): bb._lbl.text_color=(1,1,1,1) if s2 else C["text"]
-                    self._refresh_stats(); return True
-            btn.bind(on_touch_up=_sp); self._sp_btns[val]=btn; pr.add_widget(btn)
+            def _sp(w, v=val):
+                self._stat_period=v
+                for kk,bb in self._sp_btns.items():
+                    s2=(kk==v); bb.md_bg_color=C["accent"] if s2 else C["surf2"]
+                    if hasattr(bb,"_lbl"): bb._lbl.text_color=(1,1,1,1) if s2 else C["text"]
+                self._refresh_stats()
+            btn.bind(on_release=_sp); self._sp_btns[val]=btn; pr.add_widget(btn)
         hdr.add_widget(pr); pg.add_widget(hdr)
 
         # ── ScrollView ───────────────────────────────────────────────────────
@@ -19905,9 +19921,25 @@ class DailyTodoApp(MDApp):
         inn.add_widget(heat_box)
 
         # ── Отчёты с фильтрами и экспортом ──────────────────────────────
-        reports_btn = MDRaisedButton(
-            text=_L("\U0001f4ca Отчёты"), md_bg_color=C["accent"], elevation=0,
-            size_hint_x=1, size_hint_y=None, height=S(44))
+        # Эмодзи внутри MDRaisedButton.text НЕ отображается — обычный
+        # текстовый шрифт кнопки не содержит эмодзи-глифов (весь эмодзи в
+        # приложении рисуется отдельно, через get_emoji_png() как картинка
+        # — см. _mini() выше). Собираем кнопку вручную: картинка + подпись.
+        reports_btn = TapCard(size_hint_y=None, height=S(44), radius=[S(10)],
+                             elevation=0, md_bg_color=C["accent"])
+        reports_row = MDBoxLayout(orientation="horizontal", spacing=S(8),
+                                  padding=[S(14),S(0)])
+        em_path = get_emoji_png("\U0001f4ca")
+        if em_path:
+            reports_row.add_widget(KivyImage(source=em_path, size_hint=(None,None),
+                                             size=(S(20),S(20)), allow_stretch=True,
+                                             keep_ratio=True, pos_hint={"center_y":0.5}))
+        reports_lbl = MDLabel(text=_L("Отчёты"), font_style="Button", bold=True,
+                              theme_text_color="Custom", text_color=(1,1,1,1),
+                              halign="left", valign="middle")
+        reports_lbl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
+        reports_row.add_widget(reports_lbl)
+        reports_btn.add_widget(reports_row)
         reports_btn.bind(on_release=lambda *_: self._open_reports_dialog())
         inn.add_widget(reports_btn)
 
@@ -19959,16 +19991,15 @@ class DailyTodoApp(MDApp):
                 b.md_bg_color = C["accent"] if sel else C["surf2"]
                 if hasattr(b,"_lbl"): b._lbl.text_color=(1,1,1,1) if sel else C["text"]
         for cname in ["Все"] + list(self.categories):
-            b = MDCard(size_hint_y=None, height=S(30), size_hint_x=None,
+            b = TapCard(size_hint_y=None, height=S(30), size_hint_x=None,
                        width=S(len(cname)*8+28), radius=[S(15)], elevation=0)
             bl = MDLabel(text=_L(cname), font_style="Caption", halign="center",
                         valign="middle", theme_text_color="Custom")
             bl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             b._lbl = bl; b.add_widget(bl)
-            def _pick_cat(w,t,c=cname):
-                if w.collide_point(*t.pos):
-                    state["category"] = c; _upd_cat_btns(); return True
-            b.bind(on_touch_up=_pick_cat)
+            def _pick_cat(w, c=cname):
+                state["category"] = c; _upd_cat_btns()
+            b.bind(on_release=_pick_cat)
             cat_btns[cname] = b
             cat_box.add_widget(b)
         _upd_cat_btns()
@@ -19987,15 +20018,14 @@ class DailyTodoApp(MDApp):
                 if hasattr(b,"_lbl"): b._lbl.text_color=(1,1,1,1) if sel else C["text"]
         for lbl_txt,val in [(_L("Все"),"all"),(_L("Выполнено"),"done"),
                              (_L("Не выполнено"),"undone")]:
-            b = MDCard(size_hint_y=None, height=S(30), radius=[S(15)], elevation=0)
+            b = TapCard(size_hint_y=None, height=S(30), radius=[S(15)], elevation=0)
             bl = MDLabel(text=lbl_txt, font_style="Caption", halign="center",
                         valign="middle", theme_text_color="Custom")
             bl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
             b._lbl = bl; b.add_widget(bl)
-            def _pick_st(w,t,v=val):
-                if w.collide_point(*t.pos):
-                    state["status"] = v; _upd_st_btns(); return True
-            b.bind(on_touch_up=_pick_st)
+            def _pick_st(w, v=val):
+                state["status"] = v; _upd_st_btns()
+            b.bind(on_release=_pick_st)
             st_btns[val] = b
             st_row.add_widget(b)
         _upd_st_btns()
