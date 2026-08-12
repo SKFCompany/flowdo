@@ -18170,16 +18170,41 @@ class DailyTodoApp(MDApp):
     def _start_notification_service(self, *_):
         """Планирует AlarmManager будильник для фоновых уведомлений.
         AlarmManager — системный планировщик Android, он работает
-        даже когда приложение убито и не требует фонового процесса."""
+        даже когда приложение убито и не требует фонового процесса.
+
+        ВАЖНО: раньше _schedule_task_alarms() выполнялся синхронно прямо
+        в UI-потоке и на каждый вызов проходил ПО ВСЕМ задачам, делая для
+        каждой задачи с датой+временем несколько JNI-вызовов (Intent,
+        PendingIntent, AlarmManager.setExactAndAllowWhileIdle). А вызывается
+        этот метод очень часто — после каждого сохранения задачи (см.
+        _do_save), при каждом возврате из фона (on_resume) — так что при
+        реально большом числе задач с датой+временем зависание могло
+        случиться почти на любое действие, не только на редактирование
+        списка. Debounce схлопывает частые повторные вызовы в один, а сама
+        работа с JNI теперь идёт в фоновом потоке — UI не блокируется
+        вообще, независимо от того, сколько задач нужно перебрать."""
         if PLATFORM != "android":
             return
-        self._log_debug("_start_notification_service: scheduling alarms")
-        try:
-            self._schedule_task_alarms()
-        except Exception as e:
-            self._log_debug(f"_start_notification_service ERROR: {e!r}")
+        if hasattr(self,"_alarm_sched_ev") and self._alarm_sched_ev:
+            self._alarm_sched_ev.cancel()
+        self._alarm_sched_ev = Clock.schedule_once(self._do_schedule_alarms, 0.6)
 
-    def _schedule_task_alarms(self):
+    def _do_schedule_alarms(self, *_):
+        self._alarm_sched_ev = None
+        self._log_debug("_start_notification_service: scheduling alarms")
+        # Снимок задач делаем в UI-потоке (быстро, dict.values() -> list),
+        # чтобы фоновый поток не читал self.tasks одновременно с возможной
+        # мутацией из UI-потока (иначе — риск "dictionary changed size
+        # during iteration").
+        tasks_snapshot = list(self.tasks.values())
+        def _worker():
+            try:
+                self._schedule_task_alarms(tasks_snapshot)
+            except Exception as e:
+                self._log_debug(f"_start_notification_service ERROR: {e!r}")
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _schedule_task_alarms(self, tasks_snapshot=None):
         """Планирует точные Android-будильники через AlarmManager для каждой
         задачи с временем и/или напоминанием. Будильники будят PythonActivity
         которое показывает уведомление — работает при закрытом приложении."""
@@ -18201,7 +18226,10 @@ class DailyTodoApp(MDApp):
         now = _dt.now()
         alarms_set = 0
 
-        for t in self.tasks.values():
+        if tasks_snapshot is None:
+            tasks_snapshot = list(self.tasks.values())
+
+        for t in tasks_snapshot:
             if t.get("done"):
                 continue
             date_s = t.get("date", "")
