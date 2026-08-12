@@ -95,7 +95,6 @@ from kivymd.uix.screen import MDScreen
 from kivymd.uix.screenmanager import MDScreenManager
 from kivymd.uix.boxlayout import MDBoxLayout
 from kivymd.uix.card import MDCard
-from kivy.uix.behaviors import ButtonBehavior
 from kivymd.uix.label import MDLabel
 from kivymd.uix.button import MDRaisedButton, MDFlatButton, MDIconButton
 from kivymd.uix.textfield import MDTextField
@@ -15925,22 +15924,6 @@ def update_emoji_label(widget, new_text):
 # ═══════════════════════════════════════════════════════════════════════════
 #  Голосовой помощник
 # ═══════════════════════════════════════════════════════════════════════════
-class TapCard(ButtonBehavior, MDCard):
-    """MDCard с нормальным поведением кнопки (on_press/on_release).
-
-    РАНЬШЕ во многих местах интерактивные карточки делались вручную через
-    card.bind(on_touch_up=...) + collide_point(*touch.pos) — в большинстве
-    мест это работает, но как минимум для переключателя периода в
-    статистике (Неделя/Месяц/Всё) не срабатывало вообще. ButtonBehavior —
-    штатный, многократно проверенный Kivy-механизм обработки нажатий,
-    который сам корректно обрабатывает случаи, которые ручной
-    on_touch_up+collide_point может пропустить (например, если где-то по
-    дереву виджетов touch уже был грабнут раньше). Новый код интерактивных
-    карточек стоит писать через этот класс, а не через ручной on_touch_up.
-    """
-    pass
-
-
 class CalendarWidget(MDBoxLayout):
     def __init__(self, on_select=None, task_dates=None, **kw):
         super().__init__(**kw)
@@ -19547,7 +19530,7 @@ class DailyTodoApp(MDApp):
                        size_hint_y=None, height=S(30))
         for txt,val in [(_L("Неделя"),"week"),(_L("Месяц"),"month"),(_L("Всё"),"all")]:
             sel=(val=="week")
-            btn=TapCard(size_hint_y=None, height=S(28), size_hint_x=None, width=S(70),
+            btn=MDCard(size_hint_y=None, height=S(28), size_hint_x=None, width=S(70),
                        radius=[S(14)], elevation=0,
                        md_bg_color=C["accent"] if sel else C["surf2"])
             sp_lbl=MDLabel(text=txt, font_style="Caption",
@@ -19925,7 +19908,7 @@ class DailyTodoApp(MDApp):
         # текстовый шрифт кнопки не содержит эмодзи-глифов (весь эмодзи в
         # приложении рисуется отдельно, через get_emoji_png() как картинка
         # — см. _mini() выше). Собираем кнопку вручную: картинка + подпись.
-        reports_btn = TapCard(size_hint_y=None, height=S(44), radius=[S(10)],
+        reports_btn = MDCard(size_hint_y=None, height=S(44), radius=[S(10)],
                              elevation=0, md_bg_color=C["accent"])
         reports_row = MDBoxLayout(orientation="horizontal", spacing=S(8),
                                   padding=[S(14),S(0)])
@@ -19991,7 +19974,7 @@ class DailyTodoApp(MDApp):
                 b.md_bg_color = C["accent"] if sel else C["surf2"]
                 if hasattr(b,"_lbl"): b._lbl.text_color=(1,1,1,1) if sel else C["text"]
         for cname in ["Все"] + list(self.categories):
-            b = TapCard(size_hint_y=None, height=S(30), size_hint_x=None,
+            b = MDCard(size_hint_y=None, height=S(30), size_hint_x=None,
                        width=S(len(cname)*8+28), radius=[S(15)], elevation=0)
             bl = MDLabel(text=_L(cname), font_style="Caption", halign="center",
                         valign="middle", theme_text_color="Custom")
@@ -20018,7 +20001,7 @@ class DailyTodoApp(MDApp):
                 if hasattr(b,"_lbl"): b._lbl.text_color=(1,1,1,1) if sel else C["text"]
         for lbl_txt,val in [(_L("Все"),"all"),(_L("Выполнено"),"done"),
                              (_L("Не выполнено"),"undone")]:
-            b = TapCard(size_hint_y=None, height=S(30), radius=[S(15)], elevation=0)
+            b = MDCard(size_hint_y=None, height=S(30), radius=[S(15)], elevation=0)
             bl = MDLabel(text=lbl_txt, font_style="Caption", halign="center",
                         valign="middle", theme_text_color="Custom")
             bl.bind(size=lambda w,s: setattr(w,"text_size",(s[0],None)))
