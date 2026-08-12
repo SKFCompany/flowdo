@@ -17866,6 +17866,21 @@ class DailyTodoApp(MDApp):
         self._save_ev    = None
         self._ref_ev     = None
         self._refresh_batch_ev = None
+        # ── Ограничение количества одновременно отрисованных карточек ──────
+        # РАНЬШЕ при фильтре "Все даты" и реально большим числом задач
+        # (сотни) приложение создавало ВСЕ карточки — просто порциями по
+        # кадрам вместо одного блокирующего цикла (см. Этап 2). Это убрало
+        # подвисание САМОГО КАДРА, но не убрало главную проблему: сотни
+        # полноценных виджетов TaskCard (с canvas-привязками, лейблами,
+        # иконками у каждой) одновременно живут в памяти — на слабом
+        # телефоне это может исчерпать память НАСТОЛЬКО, что Android просто
+        # убивает процесс приложения (без единой ошибки в нашем логе — это
+        # решение ОС, а не наш краш). Теперь рендерим не больше
+        # _LIST_PAGE_SIZE карточек за раз, с кнопкой "Показать ещё" внизу —
+        # так пиковое число живых виджетов ограничено ВСЕГДА, независимо от
+        # того, сколько всего у вас задач: хоть 50, хоть 5000.
+        self._LIST_PAGE_SIZE = 60
+        self._list_visible_count = self._LIST_PAGE_SIZE
         self._ring_pct   = 0.0
         self.weekly_goal = 80       # цель на неделю %
         self.mood_history = {}      # {"DD.MM.YYYY": 1-5}
@@ -21269,7 +21284,21 @@ class DailyTodoApp(MDApp):
         # (или частых тапах по фильтрам) полная пересборка списка карточек
         # раньше запускалась почти на каждое нажатие — теперь несколько
         # быстрых изменений подряд схлопываются в одну пересборку.
+        #
+        # Сбрасываем "показано N задач" к дефолту при ЛЮБОМ обычном
+        # обновлении списка (смена фильтра, категории, поиск, сохранение
+        # задачи и т.д.) — пагинация продолжается только когда пользователь
+        # сам жмёт "Показать ещё" (см. _load_more_tasks, которая НЕ сбрасывает
+        # счётчик и не проходит через этот метод).
+        self._list_visible_count = self._LIST_PAGE_SIZE
         self._ref_ev=Clock.schedule_once(self._do_refresh, 0.25)
+
+    def _load_more_tasks(self):
+        """Показать следующую порцию задач в списке — см. _LIST_PAGE_SIZE."""
+        self._list_visible_count += self._LIST_PAGE_SIZE
+        if hasattr(self,"_ref_ev") and self._ref_ev: self._ref_ev.cancel()
+        self._ref_ev=None
+        self._do_refresh()
 
     def _do_refresh(self, *_):
         self._ref_ev=None
@@ -21334,6 +21363,17 @@ class DailyTodoApp(MDApp):
                                   PRIO.get(t.get("priority","Средний"),1),
                                   t.get("date","")))
 
+        # ── Ограничиваем число ОДНОВРЕМЕННО отрисованных карточек ───────────
+        # tasks — полный отфильтрованный список (нужен для статистики,
+        # "задачи дня", подсветки дат календаря в _finish_refresh — считаем
+        # их по ПОЛНОМУ списку). А отрисовываем только первые
+        # _list_visible_count штук — при большом общем числе задач это и
+        # есть настоящая защита от нехватки памяти (см. комментарий у
+        # _LIST_PAGE_SIZE в build()), а не просто "рисуем без блокировки
+        # кадра", как было в предыдущей версии батчинга.
+        visible_tasks = tasks[:self._list_visible_count]
+        has_more = len(tasks) > len(visible_tasks)
+
         # ── Отрисовка карточек ПОРЦИЯМИ, а не одним синхронным циклом ───────
         # РАНЬШЕ все карточки TaskCard создавались в одном for-цикле подряд.
         # С фильтром "Все даты" и реально большим числом задач это была
@@ -21352,7 +21392,7 @@ class DailyTodoApp(MDApp):
         _idx = {"i": 0}
 
         def _build_batch(*_):
-            chunk = tasks[_idx["i"]: _idx["i"]+BATCH]
+            chunk = visible_tasks[_idx["i"]: _idx["i"]+BATCH]
             for t in chunk:
                 card = TaskCard(
                     task_id=t["id"],title=t["title"],task_date=t["date"],
@@ -21368,15 +21408,30 @@ class DailyTodoApp(MDApp):
                 card.bind(pos=_init_x)
                 self.task_list.add_widget(card)
             _idx["i"] += BATCH
-            if _idx["i"] >= len(tasks):
+            if _idx["i"] >= len(visible_tasks):
                 self._refresh_batch_ev = None
+                if has_more:
+                    self._add_load_more_card(len(tasks) - len(visible_tasks))
                 self._finish_refresh(tasks)
                 return False  # остановить schedule_interval
 
-        if tasks:
+        if visible_tasks:
             self._refresh_batch_ev = Clock.schedule_interval(_build_batch, 0)
         else:
             self._finish_refresh(tasks)
+
+    def _add_load_more_card(self, remaining_count):
+        """Кнопка 'Показать ещё N' внизу списка — появляется, когда
+        отфильтрованных задач больше, чем сейчас отрисовано (см.
+        _LIST_PAGE_SIZE)."""
+        card = MDCard(size_hint_y=None, height=S(48), radius=[S(10)],
+                      elevation=0, md_bg_color=C["surf2"])
+        lbl = MDLabel(text=_L("Показать ещё {n}", n=remaining_count),
+                      font_style="Button", theme_text_color="Custom",
+                      text_color=C["accent"], halign="center", valign="middle")
+        card.add_widget(lbl)
+        card.bind(on_release=lambda *_: self._load_more_tasks())
+        self.task_list.add_widget(card)
 
     def _finish_refresh(self, tasks):
         """Вторая половина обновления списка задач — статистика, пустой
