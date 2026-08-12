@@ -20192,6 +20192,34 @@ class DailyTodoApp(MDApp):
         bits.append(_L("Сформировано: {d}", d=datetime.now().strftime("%d.%m.%Y %H:%M")))
         return bits
 
+    def _self_heal_fonttools_so(self):
+        """Удаляет неправильно собранные .so внутри пакета fontTools
+        (архитектура сборочной машины вместо телефона — см. подробный
+        комментарий в p4a_hook.py). Это подстраховка НА СЛУЧАЙ, если
+        сборочный хук (который должен вырезать их при сборке APK) почему-то
+        их не нашёл: у самого приложения есть полный доступ на запись в
+        собственную private-директорию, поэтому оно может само дочистить
+        то, что осталось, при первой же попытке экспорта PDF. Без .so
+        Python сам подхватывает чистый Python-вариант тех же модулей
+        (specifically для этого он в fontTools и существует)."""
+        try:
+            import fontTools
+            ft_dir = os.path.dirname(fontTools.__file__)
+            removed = []
+            for root, _dirs, files in os.walk(ft_dir):
+                for f in files:
+                    if f.endswith(".so"):
+                        p = os.path.join(root, f)
+                        try:
+                            os.remove(p)
+                            removed.append(p)
+                        except OSError as e:
+                            self._log_debug(f"_self_heal_fonttools_so: remove failed {p}: {e!r}")
+            if removed:
+                self._log_debug(f"_self_heal_fonttools_so: removed {len(removed)} .so: {removed}")
+        except Exception as e:
+            self._log_debug(f"_self_heal_fonttools_so ERROR: {e!r}")
+
     def _build_report_pdf(self, tasks, state):
         # ВАЖНО: изначально здесь использовался reportlab, но его
         # C-ускоритель (_rl_accel) использует древние CPython API
@@ -20200,6 +20228,14 @@ class DailyTodoApp(MDApp):
         # Android падала прямо на компиляции этого C-расширения NDK-
         # тулчейном, ещё до всякого нашего кода. fpdf2 — чистый Python,
         # без единого C-расширения, компилировать под Android нечего.
+        #
+        # НО: одна из его зависимостей, fontTools, сама пытается собрать
+        # опциональные Cython-ускорители (bezierTools и т.п.) — а
+        # buildozer/p4a собирает их под архитектуру СБОРОЧНОЙ машины, а не
+        # телефона, из-за чего import падал с "dlopen failed: ... is for
+        # EM_X86_64 instead of EM_AARCH64". Чистим это сами на всякий
+        # случай — см. _self_heal_fonttools_so().
+        self._self_heal_fonttools_so()
         from fpdf import FPDF
 
         out_name = f"FlowDo_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"

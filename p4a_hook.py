@@ -19,6 +19,70 @@ gradle). Никакой командной строки, никакого экр
 import re
 from pathlib import Path
 
+# ═══════════════════════════════════════════════════════════════════════════
+#  fontTools: удаляем неправильно собранные .so (архитектура сборочной
+#  машины вместо телефона)
+# ═══════════════════════════════════════════════════════════════════════════
+# fontTools (зависимость fpdf2, для встраивания TTF-шрифта с кириллицей в
+# PDF) при установке пытается собрать несколько своих модулей
+# (bezierTools, cu2qu, qu2cu и т.п.) в Cython-ускоренные .so, если видит
+# установленный Cython (а он у нас есть — нужен для сборки самого Kivy).
+# Переменная окружения FONTTOOLS_WITH_CYTHON=0 должна была это отключать,
+# но на практике buildozer/p4a не прокидывают её во внутренний
+# pip-подпроцесс, который реально ставит fontTools — .so всё равно
+# собирается, причём под архитектуру СБОРОЧНОЙ машины (x86_64), а не
+# телефона (arm64), и приложение падает с "dlopen failed: ... is for
+# EM_X86_64 instead of EM_AARCH64" при любой попытке сгенерировать PDF.
+#
+# Не полагаемся больше на переменные окружения — physически вырезаем эти
+# .so из уже собранного пакета прямо здесь, тем же способом, каким уже
+# правим AndroidManifest.xml: после того как p4a всё собрал, но до того
+# как gradle упакует APK. Без .so Python сам использует чистый
+# Python-вариант тех же модулей (он для этого и существует в fontTools) —
+# работает чуть медленнее, но для генерации отчётов с запасом достаточно,
+# и, что важно, одинаково — на любой архитектуре.
+def _strip_bad_fonttools_so(search_root: Path):
+    if not search_root.exists():
+        print(f"[p4a_hook] fontTools cleanup: {search_root} does not exist, skipping")
+        return
+    removed = []
+    for so_path in search_root.rglob("*.so"):
+        # Интересуют только .so ВНУТРИ пакета fontTools (сам fontTools
+        # ставится как "fontTools", регистр важен на некоторых ФС).
+        if "fontTools" in so_path.parts:
+            try:
+                so_path.unlink()
+                removed.append(str(so_path))
+            except OSError as e:
+                print(f"[p4a_hook] fontTools cleanup: failed to remove {so_path}: {e}")
+    if removed:
+        print(f"[p4a_hook] fontTools cleanup: removed {len(removed)} .so file(s) "
+              f"under {search_root}:")
+        for p in removed:
+            print(f"[p4a_hook]   - {p}")
+    else:
+        print(f"[p4a_hook] fontTools cleanup: no .so files found under {search_root} "
+              f"(already clean, or wrong search path — if the crash persists, "
+              f"this path needs adjusting)")
+
+
+def _strip_bad_native_libs(toolchain):
+    # Точное место, куда p4a складывает финальный python-бандл для
+    # упаковки в APK, зависит от версии/bootstrap — проверяем несколько
+    # правдоподобных мест, а не полагаемся на одно.
+    dist_dir = Path(toolchain._dist.dist_dir)
+    candidates = [dist_dir, dist_dir.parent]
+    storage_dir = getattr(getattr(toolchain, "ctx", None), "build_dir", None)
+    if storage_dir:
+        candidates.append(Path(storage_dir))
+    seen = set()
+    for root in candidates:
+        if root in seen:
+            continue
+        seen.add(root)
+        _strip_bad_fonttools_so(root)
+
+
 RECEIVERS_XML = """
     <receiver
         android:name="org.flowdo.flowdo.AlarmNotificationReceiver"
@@ -132,8 +196,10 @@ def _patch(manifest_file: Path):
 def after_apk_build(toolchain):
     manifest_file = Path(toolchain._dist.dist_dir) / "src" / "main" / "AndroidManifest.xml"
     _patch(manifest_file)
+    _strip_bad_native_libs(toolchain)
 
 
 def before_apk_build(toolchain):
     manifest_file = Path(toolchain._dist.dist_dir) / "src" / "main" / "AndroidManifest.xml"
     _patch(manifest_file)
+    _strip_bad_native_libs(toolchain)
