@@ -18371,25 +18371,40 @@ class DailyTodoApp(MDApp):
         """Прямая отправка через NotificationManager с явным созданием канала
         (на Android 8+ уведомления без канала не показываются — plyer не
         создаёт канал на многих устройствах, поэтому notify() молча
-        ничего не делает)."""
+        ничего не делает).
+
+        ВАЖНО: раньше вся цепочка JNI-вызовов ниже (создание канала,
+        диагностические проверки, NotificationBuilder, notify()...)
+        выполнялась СИНХРОННО в том потоке, который её вызвал — а
+        вызывается это на UI-потоке: например, прямо в момент отметки
+        задачи "выполнено" (см. TaskCard._toggle). Десяток JNI-переходов
+        подряд — это реально заметная задержка на слабом телефоне (те
+        самые "моргает чёрный экран на 1-2 сек" после отметки
+        выполнено). Хуже того, _check_reminders() тикает раз в 30 секунд
+        и может найти сразу НЕСКОЛЬКО просроченных задач за один тик —
+        тогда уведомления шлются несколько раз подряд синхронно, и
+        задержки складываются. Переносим в фоновый поток — так же, как
+        уже сделано для будильников и записи файлов."""
         self._log_debug(f"_send_android_notification: title='{title}' message='{message}'")
-        try:
-            self._do_send_android_notification(title, message)
-            self._log_debug("  -> notify() OK")
-        except Exception as e:
-            self._log_debug(f"  -> notify() FAILED: {e!r}")
-            # Резервный вариант через plyer, на случай если NotificationManager
-            # недоступен по какой-то причине
-            if PLYER_OK:
-                try:
-                    _plyer_notif.notify(title=title, message=message,
-                                        app_name="FlowDo", timeout=5)
-                    self._log_debug("  -> plyer fallback OK")
-                except Exception as e2:
-                    self._log_debug(f"  -> plyer fallback FAILED: {e2!r}")
-            if hasattr(self, "_show_toast"):
-                Clock.schedule_once(
-                    lambda *_, err=str(e): self._show_toast(f"Notif error: {err}"), 0)
+        def _worker():
+            try:
+                self._do_send_android_notification(title, message)
+                self._log_debug("  -> notify() OK")
+            except Exception as e:
+                self._log_debug(f"  -> notify() FAILED: {e!r}")
+                # Резервный вариант через plyer, на случай если NotificationManager
+                # недоступен по какой-то причине
+                if PLYER_OK:
+                    try:
+                        _plyer_notif.notify(title=title, message=message,
+                                            app_name="FlowDo", timeout=5)
+                        self._log_debug("  -> plyer fallback OK")
+                    except Exception as e2:
+                        self._log_debug(f"  -> plyer fallback FAILED: {e2!r}")
+                if hasattr(self, "_show_toast"):
+                    Clock.schedule_once(
+                        lambda *_, err=str(e): self._show_toast(f"Notif error: {err}"), 0)
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _do_send_android_notification(self, title, message):
         from jnius import autoclass, cast
@@ -18414,14 +18429,21 @@ class DailyTodoApp(MDApp):
             self._log_debug(f"  areNotificationsEnabled() check failed: {e!r}")
 
         channel_id = "flowdo_reminders"
-        if BuildVersion.SDK_INT >= 26:
+        # ВАЖНО: раньше канал пересоздавался на КАЖДУЮ отправку уведомления
+        # (плюс диагностическая проверка через getNotificationChannel сразу
+        # после) — это два лишних JNI-перехода на каждое уведомление,
+        # хотя канал нужно создать только один раз за всё время жизни
+        # процесса (createNotificationChannel идемпотентен, но каждый вызов
+        # всё равно стоит времени). Создаём и проверяем только один раз.
+        if BuildVersion.SDK_INT >= 26 and not getattr(self, "_notif_channel_created", False):
             channel = NotificationChannel(
                 channel_id,
                 cast("java.lang.CharSequence", String("Flow\u00b7Do Напоминания")),
                 NotificationManager.IMPORTANCE_HIGH
             )
             notif_manager.createNotificationChannel(channel)
-            # Диагностика: проверяем созданный канал
+            self._notif_channel_created = True
+            # Диагностика: проверяем созданный канал (только при первом создании)
             try:
                 ch = notif_manager.getNotificationChannel(channel_id)
                 importance = ch.getImportance()
