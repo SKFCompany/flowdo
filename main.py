@@ -19462,6 +19462,11 @@ class DailyTodoApp(MDApp):
 
     def _refresh_cal(self):
         if not hasattr(self,"cal_task_list"): return
+        # ── Останавливаем предыдущую порционную отрисовку, если она ещё
+        # не закончилась (быстрое переключение дат/вкладок) ────────────
+        if hasattr(self,"_cal_batch_ev") and self._cal_batch_ev:
+            self._cal_batch_ev.cancel()
+            self._cal_batch_ev = None
         self.cal_task_list.clear_widgets()
         ds=self._cal_sel.strftime("%d.%m.%Y")
         DAYS=_days_full()
@@ -19532,44 +19537,72 @@ class DailyTodoApp(MDApp):
                 self.cal_task_list.add_widget(slot)
         else:
             # ── Список ───────────────────────────────────────────────────
-            for t in tasks:
-                if t.get("time"):
-                    slot=MDBoxLayout(orientation="horizontal", size_hint_y=None,
-                                     height=S(52), spacing=S(8), padding=[0,S(4)])
-                    _lbl_tmp=MDLabel(text=t["time"], font_style="Caption",
-                                            theme_text_color="Custom", text_color=C["text2"],
-                                            size_hint_x=None, width=S(44),
-                                            halign="right", valign="middle")
-                    slot.add_widget(_lbl_tmp)
-                    _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-                    dot=Widget(size_hint=(None,None), size=(S(8),S(8)),
-                               pos_hint={"center_y":0.5})
-                    def _dd(w,*_,done=t.get("done",False)):
-                        w.canvas.clear()
-                        with w.canvas:
-                            Color(*(C["green"] if done else C["accent"]))
-                            Ellipse(pos=w.pos, size=w.size)
-                    dot.bind(pos=_dd, size=_dd); slot.add_widget(dot)
-                    tc2=MDCard(size_hint_y=None, height=S(44),
-                               radius=[S(12)] if is_fem else [S(8)],
-                               elevation=0, md_bg_color=C["surf"], padding=[S(12),S(8)])
-                    _lbl_tmp=MDLabel(text=t.get("title",""), font_style="Body2",
-                                           theme_text_color="Custom",
-                                           text_color=C["text2"] if t.get("done") else C["text"],
-                                  halign="left", valign="middle")
-                    tc2.add_widget(_lbl_tmp)
-                    _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
-                    def _tap(w,touch,tid=t["id"]):
-                        if w.collide_point(*touch.pos): self.open_task_detail(tid); return True
-                    tc2.bind(on_touch_up=_tap); slot.add_widget(tc2)
-                    self.cal_task_list.add_widget(slot)
-                else:
-                    self.cal_task_list.add_widget(
-                        TaskCard(task_id=t["id"], title=t["title"], task_date=t["date"],
-                                 done=t.get("done",False), priority=t.get("priority","Средний"),
-                                 category=t.get("category",""), comment=t.get("comment",""),
-                                 original_date=t.get("original_date",t["date"]),
-                                 subtasks=t.get("subtasks",[]), show_cat=True))
+            # ВАЖНО: раньше все карточки задач этого дня создавались одним
+            # синхронным for-циклом. У _refresh_cal нет своей пагинации
+            # (в отличие от _do_refresh для главного списка), поэтому день
+            # с большим числом задач (например, ветка "шашлычка"/склада с
+            # десятками пунктов) рисовался ПОЛНОСТЬЮ за один кадр — именно
+            # это и вызывало зависание при открытии календаря / при
+            # переключении дня / после отметки задачи выполненной, когда
+            # экран календаря активен (см. _finish_refresh, которая дёргает
+            # _refresh_cal). Теперь, как и в главном списке, карточки
+            # создаются порциями по BATCH штук за кадр — интерфейс не
+            # замирает независимо от того, сколько задач в дне.
+            BATCH = 12
+            _idx = {"i": 0}
+
+            def _build_cal_batch(*_):
+                chunk = tasks[_idx["i"]: _idx["i"]+BATCH]
+                for t in chunk:
+                    if t.get("time"):
+                        slot=MDBoxLayout(orientation="horizontal", size_hint_y=None,
+                                         height=S(52), spacing=S(8), padding=[0,S(4)])
+                        _lbl_tmp=MDLabel(text=t["time"], font_style="Caption",
+                                                theme_text_color="Custom", text_color=C["text2"],
+                                                size_hint_x=None, width=S(44),
+                                                halign="right", valign="middle")
+                        slot.add_widget(_lbl_tmp)
+                        _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
+                        dot=Widget(size_hint=(None,None), size=(S(8),S(8)),
+                                   pos_hint={"center_y":0.5})
+                        def _dd(w,*_,done=t.get("done",False)):
+                            w.canvas.clear()
+                            with w.canvas:
+                                Color(*(C["green"] if done else C["accent"]))
+                                Ellipse(pos=w.pos, size=w.size)
+                        dot.bind(pos=_dd, size=_dd); slot.add_widget(dot)
+                        tc2=MDCard(size_hint_y=None, height=S(44),
+                                   radius=[S(12)] if is_fem else [S(8)],
+                                   elevation=0, md_bg_color=C["surf"], padding=[S(12),S(8)])
+                        _lbl_tmp=MDLabel(text=t.get("title",""), font_style="Body2",
+                                               theme_text_color="Custom",
+                                               text_color=C["text2"] if t.get("done") else C["text"],
+                                      halign="left", valign="middle")
+                        tc2.add_widget(_lbl_tmp)
+                        _lbl_tmp.bind(size=lambda w,s: setattr(w,'text_size',(s[0],None)))
+                        def _tap(w,touch,tid=t["id"]):
+                            if w.collide_point(*touch.pos): self.open_task_detail(tid); return True
+                        tc2.bind(on_touch_up=_tap); slot.add_widget(tc2)
+                        self.cal_task_list.add_widget(slot)
+                    else:
+                        self.cal_task_list.add_widget(
+                            TaskCard(task_id=t["id"], title=t["title"], task_date=t["date"],
+                                     done=t.get("done",False), priority=t.get("priority","Средний"),
+                                     category=t.get("category",""), comment=t.get("comment",""),
+                                     original_date=t.get("original_date",t["date"]),
+                                     subtasks=t.get("subtasks",[]), show_cat=True))
+                _idx["i"] += BATCH
+                if _idx["i"] >= len(tasks):
+                    self._cal_batch_ev = None
+                    if hasattr(self,"cal_w"):
+                        self.cal_w.refresh_dates(self._get_task_dates())
+                    return False  # остановить schedule_interval
+
+            if tasks:
+                self._cal_batch_ev = Clock.schedule_interval(_build_cal_batch, 0)
+            elif hasattr(self,"cal_w"):
+                self.cal_w.refresh_dates(self._get_task_dates())
+            return
 
         if hasattr(self,"cal_w"):
             self.cal_w.refresh_dates(self._get_task_dates())
